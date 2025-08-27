@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
@@ -14,17 +14,21 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { UserPlus, CheckCircle, Eye, EyeOff, AlertCircle, Loader2 } from "lucide-react";
+import { UserPlus, CheckCircle, Eye, EyeOff, AlertCircle, Loader2, Shield, Mail } from "lucide-react";
+import { FcGoogle } from "react-icons/fc";
+import { FaGithub } from "react-icons/fa";
 import Layout from "@/components/Layout";
 import { registrationSchema, type RegistrationFormData, getPasswordStrength } from "@/lib/validations";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function Register() {
   const navigate = useNavigate();
-  const [isLoading, setIsLoading] = useState(false);
+  const { signUp, signInWithOAuth, isAuthenticated, isLoading } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState<string>("");
   const [success, setSuccess] = useState<string>("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<RegistrationFormData>({
     resolver: zodResolver(registrationSchema),
@@ -39,29 +43,69 @@ export default function Register() {
   const watchedPassword = form.watch("password");
   const passwordStrength = watchedPassword ? getPasswordStrength(watchedPassword) : null;
 
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate("/dashboard", { replace: true });
+    }
+  }, [isAuthenticated, navigate]);
+
   const onSubmit = async (data: RegistrationFormData) => {
-    setIsLoading(true);
+    setIsSubmitting(true);
     setError("");
     setSuccess("");
 
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      const { error: authError } = await signUp(data.email, data.password, data.fullName);
       
-      // For demo purposes, simulate registration success
-      console.log("Registration data:", data);
+      if (authError) {
+        // Handle specific error messages
+        if (authError.message.includes('User already registered')) {
+          setError("An account with this email already exists. Please sign in instead.");
+        } else if (authError.message.includes('Password should be at least')) {
+          setError("Password must be at least 6 characters long.");
+        } else if (authError.message.includes('Invalid email')) {
+          setError("Please enter a valid email address.");
+        } else if (authError.message.includes('weak password')) {
+          setError("Please choose a stronger password with uppercase, lowercase, numbers, and special characters.");
+        } else {
+          setError(authError.message || "An error occurred during registration. Please try again.");
+        }
+        return;
+      }
+
+      setSuccess("Account created successfully! Please check your email to verify your account before signing in.");
       
-      setSuccess("Account created successfully! Redirecting to login...");
+      // Clear form
+      form.reset();
       
-      // Redirect to login after success
+      // Redirect to login page after a delay
       setTimeout(() => {
-        navigate("/login");
-      }, 2000);
+        navigate("/login", { replace: true });
+      }, 3000);
       
-    } catch (err) {
-      setError("Registration failed. Please try again.");
+    } catch (err: any) {
+      console.error('Registration error:', err);
+      setError("An unexpected error occurred. Please try again.");
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleOAuthSignup = async (provider: 'google' | 'github') => {
+    setError("");
+    setSuccess("");
+    
+    try {
+      const { error: authError } = await signInWithOAuth(provider);
+      
+      if (authError) {
+        setError(`Failed to sign up with ${provider}. Please try again.`);
+      }
+      // OAuth redirect will happen automatically
+    } catch (err: any) {
+      console.error(`${provider} OAuth error:`, err);
+      setError(`An error occurred with ${provider} sign up. Please try again.`);
     }
   };
 
@@ -71,13 +115,28 @@ export default function Register() {
     "Maximum refund guarantee",
     "Expert support when needed",
     "Bank-level security protection",
-    "Mobile access anywhere"
+    "Mobile access anywhere",
+    "Real-time data synchronization",
+    "Secure JWT token authentication"
   ];
+
+  if (isLoading) {
+    return (
+      <Layout>
+        <div className="min-h-[calc(100vh-200px)] flex items-center justify-center">
+          <div className="text-center">
+            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-brand-600" />
+            <p className="text-gray-600">Loading...</p>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>
       <div className="min-h-[calc(100vh-200px)] py-12 px-4">
-        <div className="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+        <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
           {/* Benefits Column */}
           <div className="order-2 lg:order-1">
             <h2 className="text-3xl font-bold text-gray-900 mb-6">
@@ -86,7 +145,7 @@ export default function Register() {
             <p className="text-lg text-gray-600 mb-8">
               Start your journey to smarter tax filing with our AI-powered platform. Join over 50,000 users who trust us with their tax returns.
             </p>
-            <div className="space-y-4">
+            <div className="space-y-4 mb-8">
               {benefits.map((benefit, index) => (
                 <div key={index} className="flex items-center">
                   <CheckCircle className="w-5 h-5 text-success-600 mr-3 flex-shrink-0" />
@@ -94,9 +153,13 @@ export default function Register() {
                 </div>
               ))}
             </div>
-            <div className="mt-8 p-4 bg-brand-50 rounded-lg">
+            <div className="bg-brand-50 rounded-lg p-6">
+              <div className="flex items-center mb-3">
+                <Shield className="w-6 h-6 text-brand-600 mr-2" />
+                <h3 className="font-semibold text-brand-900">Secure & Trusted</h3>
+              </div>
               <p className="text-sm text-brand-800">
-                <strong>🔒 Secure & Trusted:</strong> Your data is protected with enterprise-grade encryption. We never share your personal information.
+                Your data is protected with enterprise-grade encryption, JWT tokens, and secure database storage. We never share your personal information.
               </p>
             </div>
           </div>
@@ -110,7 +173,7 @@ export default function Register() {
                 </div>
                 <CardTitle className="text-2xl">Create Your Account</CardTitle>
                 <CardDescription>
-                  Start filing your taxes with confidence
+                  Start filing your taxes with confidence and security
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -123,10 +186,47 @@ export default function Register() {
                 
                 {success && (
                   <Alert className="mb-6 border-success-200 bg-success-50">
-                    <CheckCircle className="h-4 w-4 text-success-600" />
+                    <Mail className="h-4 w-4 text-success-600" />
                     <AlertDescription className="text-success-800">{success}</AlertDescription>
                   </Alert>
                 )}
+
+                {/* OAuth Buttons */}
+                <div className="space-y-3 mb-6">
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    className="w-full h-12 text-base"
+                    onClick={() => handleOAuthSignup('google')}
+                    disabled={isSubmitting}
+                  >
+                    <FcGoogle className="mr-2 h-5 w-5" />
+                    Sign up with Google
+                  </Button>
+                  
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    className="w-full h-12 text-base"
+                    onClick={() => handleOAuthSignup('github')}
+                    disabled={isSubmitting}
+                  >
+                    <FaGithub className="mr-2 h-5 w-5" />
+                    Sign up with GitHub
+                  </Button>
+                </div>
+
+                {/* Divider */}
+                <div className="relative mb-6">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-white px-2 text-muted-foreground">
+                      Or create account with email
+                    </span>
+                  </div>
+                </div>
 
                 <Form {...form}>
                   <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
@@ -162,6 +262,7 @@ export default function Register() {
                               placeholder="Enter your email address"
                               {...field}
                               className="h-12"
+                              autoComplete="email"
                             />
                           </FormControl>
                           <FormMessage />
@@ -183,6 +284,7 @@ export default function Register() {
                                 placeholder="Create a strong password"
                                 {...field}
                                 className="h-12 pr-10"
+                                autoComplete="new-password"
                               />
                               <Button
                                 type="button"
@@ -245,6 +347,7 @@ export default function Register() {
                                 placeholder="Confirm your password"
                                 {...field}
                                 className="h-12 pr-10"
+                                autoComplete="new-password"
                               />
                               <Button
                                 type="button"
@@ -271,15 +374,18 @@ export default function Register() {
                       <Button 
                         type="submit" 
                         className="w-full h-12 text-base" 
-                        disabled={isLoading}
+                        disabled={isSubmitting || isLoading}
                       >
-                        {isLoading ? (
+                        {isSubmitting ? (
                           <>
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                             Creating Account...
                           </>
                         ) : (
-                          "Create Account"
+                          <>
+                            <UserPlus className="mr-2 h-4 w-4" />
+                            Create Account
+                          </>
                         )}
                       </Button>
                       
@@ -288,7 +394,7 @@ export default function Register() {
                           type="button" 
                           variant="outline" 
                           className="w-full h-12 text-base"
-                          disabled={isLoading}
+                          disabled={isSubmitting}
                         >
                           Back to Login
                         </Button>
