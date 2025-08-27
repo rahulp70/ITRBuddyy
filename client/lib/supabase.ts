@@ -403,7 +403,4 @@ export const subscriptions = isSupabaseConfigured ? {
   },
 };
 
-// Export configuration status for components to use
-export { isSupabaseConfigured };
-
 export default supabase;
