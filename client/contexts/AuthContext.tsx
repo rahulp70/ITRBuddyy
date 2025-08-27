@@ -203,7 +203,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const signUp = async (email: string, password: string, fullName: string) => {
     setLoading(true);
     try {
-      console.log('🔄 Attempting signup:', { email, fullName, mode: isSupabaseConfigured ? 'Supabase' : 'Mock' });
+      console.log('���� Attempting signup:', { email, fullName, mode: isSupabaseConfigured ? 'Supabase' : 'Mock' });
 
       const { data, error } = await authHelpers.signUp(email, password, fullName);
 
@@ -259,19 +259,22 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setLoading(true);
     try {
       console.log('🔄 Attempting OAuth signin:', { provider, mode: isSupabaseConfigured ? 'Supabase' : 'Mock' });
-      
+
       const { error } = await authHelpers.signInWithOAuth(provider);
-      
+
       if (error) {
         console.error('❌ OAuth error:', error);
+        // Ensure error has proper message format
+        const errorMessage = error?.message || (typeof error === 'string' ? error : `An error occurred with ${provider} authentication`);
+        return { error: { message: errorMessage } };
       } else {
         console.log('✅ OAuth successful:', provider);
       }
-      
-      return { error };
+
+      return { error: null };
     } catch (error: any) {
       console.error('❌ OAuth exception:', error);
-      return { error: { message: error.message || `An unexpected error occurred with ${provider} authentication` } };
+      return { error: { message: error?.message || `An unexpected error occurred with ${provider} authentication` } };
     } finally {
       setLoading(false);
     }
