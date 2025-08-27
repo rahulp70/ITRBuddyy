@@ -59,17 +59,26 @@ export default function Register() {
       const { error: authError } = await signUp(data.email, data.password, data.fullName);
       
       if (authError) {
+        console.log('🔍 Registration error received:', authError);
+
+        // Ensure we have a string message to work with
+        const errorMessage = authError?.message ||
+                           (typeof authError === 'string' ? authError : '') ||
+                           "An error occurred during registration. Please try again.";
+
+        console.log('🔍 Processed error message:', errorMessage);
+
         // Handle specific error messages
-        if (authError.message.includes('User already registered')) {
+        if (errorMessage.includes('User already registered')) {
           setError("An account with this email already exists. Please sign in instead.");
-        } else if (authError.message.includes('Password should be at least')) {
+        } else if (errorMessage.includes('Password should be at least')) {
           setError("Password must be at least 6 characters long.");
-        } else if (authError.message.includes('Invalid email')) {
+        } else if (errorMessage.includes('Invalid email')) {
           setError("Please enter a valid email address.");
-        } else if (authError.message.includes('weak password')) {
+        } else if (errorMessage.includes('weak password')) {
           setError("Please choose a stronger password with uppercase, lowercase, numbers, and special characters.");
         } else {
-          setError(authError.message || "An error occurred during registration. Please try again.");
+          setError(errorMessage);
         }
         return;
       }
