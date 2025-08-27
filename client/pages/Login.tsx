@@ -24,7 +24,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export default function Login() {
   const navigate = useNavigate();
-  const { signIn, signInWithOAuth, isAuthenticated, isLoading } = useAuth();
+  const { signIn, signInWithOAuth, isAuthenticated, isLoading, isSupabaseConfigured } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string>("");
   const [success, setSuccess] = useState<string>("");
