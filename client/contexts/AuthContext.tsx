@@ -350,28 +350,32 @@ export function AuthProvider({ children }: AuthProviderProps) {
   };
 
   const updateProfile = async (updates: Partial<UserProfile>) => {
-    if (!user?.id) return { error: new Error('No authenticated user') };
-    
+    if (!user?.id) return { error: { message: 'No authenticated user' } };
+
     try {
       console.log('🔄 Attempting profile update:', updates);
-      
+
       const { data, error } = await authHelpers.updateUserProfile(user.id, {
         ...updates,
         updated_at: new Date().toISOString(),
       });
-      
+
       if (!error && data) {
         setProfile(data);
         cacheProfile(data);
         console.log('✅ Profile update successful');
+        return { error: null };
       } else if (error) {
         console.error('❌ Profile update error:', error);
+        // Ensure error has proper message format
+        const errorMessage = error?.message || (typeof error === 'string' ? error : 'An error occurred during profile update');
+        return { error: { message: errorMessage } };
       }
-      
-      return { error };
+
+      return { error: null };
     } catch (error: any) {
       console.error('❌ Profile update exception:', error);
-      return { error: { message: error.message || 'An unexpected error occurred during profile update' } };
+      return { error: { message: error?.message || 'An unexpected error occurred during profile update' } };
     }
   };
 
