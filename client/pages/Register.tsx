@@ -191,6 +191,16 @@ export default function Register() {
                   </Alert>
                 )}
 
+                {/* Authentication Mode Info */}
+                {!isSupabaseConfigured && (
+                  <Alert className="mb-6 border-blue-200 bg-blue-50">
+                    <CheckCircle className="h-4 w-4 text-blue-600" />
+                    <AlertDescription className="text-blue-800">
+                      <strong>Development Mode:</strong> Using mock authentication. Registration will be simulated - all data is stored locally for testing.
+                    </AlertDescription>
+                  </Alert>
+                )}
+
                 {/* OAuth Buttons */}
                 <div className="space-y-3 mb-6">
                   <Button 
