@@ -38,6 +38,10 @@ const Layout = ({ children }: LayoutProps) => {
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
+      {/* Configuration Notice */}
+      <ConfigNotice />
+      <AuthModeIndicator />
+
       {/* Header */}
       <header className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
