@@ -20,6 +20,7 @@ import { FaGithub } from "react-icons/fa";
 import Layout from "@/components/Layout";
 import { loginSchema, type LoginFormData } from "@/lib/validations";
 import { useAuth } from "@/contexts/AuthContext";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export default function Login() {
   const navigate = useNavigate();
