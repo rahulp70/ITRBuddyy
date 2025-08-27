@@ -53,15 +53,24 @@ export default function Login() {
       const { error: authError } = await signIn(data.email, data.password);
       
       if (authError) {
+        console.log('🔍 Login error received:', authError);
+
+        // Ensure we have a string message to work with
+        const errorMessage = authError?.message ||
+                           (typeof authError === 'string' ? authError : '') ||
+                           "An error occurred during login. Please try again.";
+
+        console.log('🔍 Processed error message:', errorMessage);
+
         // Handle specific error messages
-        if (authError.message.includes('Invalid login credentials')) {
+        if (errorMessage.includes('Invalid login credentials')) {
           setError("Invalid email or password. Please check your credentials and try again.");
-        } else if (authError.message.includes('Email not confirmed')) {
+        } else if (errorMessage.includes('Email not confirmed')) {
           setError("Please check your email and click the confirmation link before signing in.");
-        } else if (authError.message.includes('Too many requests')) {
+        } else if (errorMessage.includes('Too many requests')) {
           setError("Too many login attempts. Please wait a few minutes and try again.");
         } else {
-          setError(authError.message || "An error occurred during login. Please try again.");
+          setError(errorMessage);
         }
         return;
       }
