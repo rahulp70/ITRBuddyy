@@ -303,12 +303,23 @@ function DashboardContent() {
           </div>
         </div>
 
+        {/* Authentication Mode Info */}
+        {!isSupabaseConfigured && (
+          <Alert className="mt-8 border-blue-200 bg-blue-50">
+            <CheckCircle className="h-4 w-4 text-blue-600" />
+            <AlertDescription className="text-blue-800">
+              <strong>Development Mode:</strong> You're logged in with mock authentication. All data is simulated and stored locally.
+              Connect Supabase for real database integration and persistent user accounts.
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* Welcome Alert for New Users */}
-        {user && !profile?.avatar_url && (
+        {user && !profile?.avatar_url && isSupabaseConfigured && (
           <Alert className="mt-8 border-brand-200 bg-brand-50">
             <CheckCircle className="h-4 w-4 text-brand-600" />
             <AlertDescription className="text-brand-800">
-              <strong>Welcome to ITR Buddy!</strong> Your account has been successfully created and you're now logged in with secure JWT authentication. 
+              <strong>Welcome to ITR Buddy!</strong> Your account has been successfully created and you're now logged in with secure JWT authentication.
               Complete your profile setup to get personalized tax recommendations.
             </AlertDescription>
           </Alert>
