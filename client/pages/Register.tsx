@@ -23,7 +23,7 @@ import { useAuth } from "@/contexts/AuthContext";
 
 export default function Register() {
   const navigate = useNavigate();
-  const { signUp, signInWithOAuth, isAuthenticated, isLoading } = useAuth();
+  const { signUp, signInWithOAuth, isAuthenticated, isLoading, isSupabaseConfigured } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState<string>("");
