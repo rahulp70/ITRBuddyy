@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
@@ -15,15 +15,19 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { LogIn, Eye, EyeOff, AlertCircle, Loader2, CheckCircle, LockKeyhole } from "lucide-react";
+import { FcGoogle } from "react-icons/fc";
+import { FaGithub } from "react-icons/fa";
 import Layout from "@/components/Layout";
 import { loginSchema, type LoginFormData } from "@/lib/validations";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function Login() {
   const navigate = useNavigate();
-  const [isLoading, setIsLoading] = useState(false);
+  const { signIn, signInWithOAuth, isAuthenticated, isLoading } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string>("");
   const [success, setSuccess] = useState<string>("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
@@ -33,47 +37,88 @@ export default function Login() {
     },
   });
 
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate("/dashboard", { replace: true });
+    }
+  }, [isAuthenticated, navigate]);
+
   const onSubmit = async (data: LoginFormData) => {
-    setIsLoading(true);
+    setIsSubmitting(true);
     setError("");
     setSuccess("");
 
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      const { error: authError } = await signIn(data.email, data.password);
       
-      // For demo purposes, simulate different login scenarios
-      if (data.email === "demo@itrbuddy.com" && data.password === "Demo123!") {
-        setSuccess("Login successful! Redirecting to dashboard...");
-        setTimeout(() => {
-          navigate("/dashboard");
-        }, 1500);
-      } else if (data.email === "test@example.com") {
-        setError("Account not found. Please check your email address.");
-      } else if (data.password.length < 6) {
-        setError("Invalid password. Please check your password and try again.");
-      } else {
-        // Generic success for demo
-        console.log("Login data:", data);
-        setSuccess("Login successful! Redirecting to dashboard...");
-        setTimeout(() => {
-          navigate("/dashboard");
-        }, 1500);
+      if (authError) {
+        // Handle specific error messages
+        if (authError.message.includes('Invalid login credentials')) {
+          setError("Invalid email or password. Please check your credentials and try again.");
+        } else if (authError.message.includes('Email not confirmed')) {
+          setError("Please check your email and click the confirmation link before signing in.");
+        } else if (authError.message.includes('Too many requests')) {
+          setError("Too many login attempts. Please wait a few minutes and try again.");
+        } else {
+          setError(authError.message || "An error occurred during login. Please try again.");
+        }
+        return;
       }
+
+      setSuccess("Login successful! Redirecting to dashboard...");
       
-    } catch (err) {
-      setError("Login failed. Please check your credentials and try again.");
+      // Navigation will happen automatically via the useEffect above
+      setTimeout(() => {
+        navigate("/dashboard", { replace: true });
+      }, 1500);
+      
+    } catch (err: any) {
+      console.error('Login error:', err);
+      setError("An unexpected error occurred. Please try again.");
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleOAuthLogin = async (provider: 'google' | 'github') => {
+    setError("");
+    setSuccess("");
+    
+    try {
+      const { error: authError } = await signInWithOAuth(provider);
+      
+      if (authError) {
+        setError(`Failed to sign in with ${provider}. Please try again.`);
+      }
+      // OAuth redirect will happen automatically
+    } catch (err: any) {
+      console.error(`${provider} OAuth error:`, err);
+      setError(`An error occurred with ${provider} sign in. Please try again.`);
     }
   };
 
   const features = [
-    "Secure authentication with 2FA support",
+    "Secure authentication with JWT tokens",
     "Access your tax returns from anywhere",
     "Real-time sync across all devices",
-    "Expert support when you need it"
+    "Expert support when you need it",
+    "OAuth integration for easy access",
+    "Session persistence and caching"
   ];
+
+  if (isLoading) {
+    return (
+      <Layout>
+        <div className="min-h-[calc(100vh-200px)] flex items-center justify-center">
+          <div className="text-center">
+            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-brand-600" />
+            <p className="text-gray-600">Loading...</p>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>
@@ -98,14 +143,10 @@ export default function Login() {
             </div>
 
             <div className="bg-brand-50 rounded-lg p-6">
-              <h3 className="font-semibold text-brand-900 mb-2">Demo Account</h3>
-              <p className="text-sm text-brand-800 mb-3">
-                Try ITR Buddy with our demo account:
+              <h3 className="font-semibold text-brand-900 mb-2">🔐 Secure Authentication</h3>
+              <p className="text-sm text-brand-800">
+                Your login is protected with enterprise-grade security, JWT tokens, and encrypted sessions.
               </p>
-              <div className="text-sm space-y-1">
-                <p><strong>Email:</strong> demo@itrbuddy.com</p>
-                <p><strong>Password:</strong> Demo123!</p>
-              </div>
             </div>
           </div>
 
@@ -118,7 +159,7 @@ export default function Login() {
                 </div>
                 <CardTitle className="text-2xl">Login to Your Account</CardTitle>
                 <CardDescription>
-                  Continue your tax filing journey
+                  Continue your tax filing journey with secure authentication
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -135,6 +176,43 @@ export default function Login() {
                     <AlertDescription className="text-success-800">{success}</AlertDescription>
                   </Alert>
                 )}
+
+                {/* OAuth Buttons */}
+                <div className="space-y-3 mb-6">
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    className="w-full h-12 text-base"
+                    onClick={() => handleOAuthLogin('google')}
+                    disabled={isSubmitting}
+                  >
+                    <FcGoogle className="mr-2 h-5 w-5" />
+                    Continue with Google
+                  </Button>
+                  
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    className="w-full h-12 text-base"
+                    onClick={() => handleOAuthLogin('github')}
+                    disabled={isSubmitting}
+                  >
+                    <FaGithub className="mr-2 h-5 w-5" />
+                    Continue with GitHub
+                  </Button>
+                </div>
+
+                {/* Divider */}
+                <div className="relative mb-6">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-white px-2 text-muted-foreground">
+                      Or continue with email
+                    </span>
+                  </div>
+                </div>
 
                 <Form {...form}>
                   <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
@@ -207,9 +285,9 @@ export default function Login() {
                     <Button 
                       type="submit" 
                       className="w-full h-12 text-base" 
-                      disabled={isLoading}
+                      disabled={isSubmitting || isLoading}
                     >
-                      {isLoading ? (
+                      {isSubmitting ? (
                         <>
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                           Signing In...
@@ -217,7 +295,7 @@ export default function Login() {
                       ) : (
                         <>
                           <LogIn className="mr-2 h-4 w-4" />
-                          Login
+                          Login with Email
                         </>
                       )}
                     </Button>
@@ -232,20 +310,8 @@ export default function Login() {
                       </p>
                     </div>
 
-                    {/* Divider */}
-                    <div className="relative">
-                      <div className="absolute inset-0 flex items-center">
-                        <span className="w-full border-t" />
-                      </div>
-                      <div className="relative flex justify-center text-xs uppercase">
-                        <span className="bg-white px-2 text-muted-foreground">
-                          Need Help?
-                        </span>
-                      </div>
-                    </div>
-
                     {/* Help Links */}
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-2 gap-4 pt-4">
                       <Link to="/forgot-password">
                         <Button variant="outline" size="sm" className="w-full h-10">
                           <LockKeyhole className="mr-2 h-4 w-4" />
@@ -254,14 +320,14 @@ export default function Login() {
                       </Link>
                       <Link to="/register">
                         <Button variant="outline" size="sm" className="w-full h-10">
-                          Register
+                          Register Account
                         </Button>
                       </Link>
                     </div>
 
                     <div className="text-center pt-2">
                       <p className="text-xs text-gray-500">
-                        Secure login protected by enterprise-grade encryption
+                        🔒 Secure login with JWT tokens and encrypted sessions
                       </p>
                     </div>
                   </form>
