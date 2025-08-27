@@ -178,6 +178,17 @@ export default function Login() {
                   </Alert>
                 )}
 
+                {/* Authentication Mode Info */}
+                {!isSupabaseConfigured && (
+                  <Alert className="mb-6 border-blue-200 bg-blue-50">
+                    <CheckCircle className="h-4 w-4 text-blue-600" />
+                    <AlertDescription className="text-blue-800">
+                      <strong>Development Mode:</strong> Using mock authentication. Any email/password will work, or try{" "}
+                      <span className="font-mono text-sm">demo@itrbuddy.com</span> / <span className="font-mono text-sm">Demo123!</span>
+                    </AlertDescription>
+                  </Alert>
+                )}
+
                 {/* OAuth Buttons */}
                 <div className="space-y-3 mb-6">
                   <Button 
