@@ -1,13 +1,16 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { User, Session, AuthError } from '@supabase/supabase-js';
-import { authHelpers, subscriptions, type UserProfile } from '@/lib/supabase';
+import { authHelpers, subscriptions, isSupabaseConfigured, type UserProfile, type AuthUser } from '@/lib/supabase';
 
 interface AuthContextType {
   // Authentication state
-  user: User | null;
+  user: AuthUser | null;
   session: Session | null;
   profile: UserProfile | null;
   loading: boolean;
+  
+  // Configuration status
+  isSupabaseConfigured: boolean;
   
   // Authentication actions
   signUp: (email: string, password: string, fullName: string) => Promise<{ error: AuthError | null }>;
@@ -37,16 +40,24 @@ interface AuthProviderProps {
 }
 
 export function AuthProvider({ children }: AuthProviderProps) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Cache management
+  // Log configuration status
+  useEffect(() => {
+    console.log('🔧 Auth Provider initialized:', {
+      supabaseConfigured: isSupabaseConfigured,
+      mode: isSupabaseConfigured ? 'Production (Supabase)' : 'Development (Mock)'
+    });
+  }, []);
+
+  // Cache management (only for real Supabase sessions)
   const cacheSession = useCallback((session: Session | null) => {
-    if (session) {
+    if (isSupabaseConfigured && session) {
       localStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(session));
-    } else {
+    } else if (isSupabaseConfigured) {
       localStorage.removeItem(SESSION_CACHE_KEY);
     }
   }, []);
@@ -60,6 +71,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, []);
 
   const loadCachedData = useCallback(() => {
+    if (!isSupabaseConfigured) return; // Don't use cache for mock auth
+    
     try {
       const cachedSession = localStorage.getItem(SESSION_CACHE_KEY);
       const cachedProfile = localStorage.getItem(PROFILE_CACHE_KEY);
@@ -104,8 +117,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
   useEffect(() => {
     let isMounted = true;
 
-    // Load cached data first for better UX
-    loadCachedData();
+    // Load cached data first for better UX (only for Supabase)
+    if (isSupabaseConfigured) {
+      loadCachedData();
+    }
 
     // Get current session
     const initializeAuth = async () => {
@@ -120,7 +135,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
             cacheSession(null);
             cacheProfile(null);
           } else {
-            setUser(currentUser);
+            setUser(currentUser as AuthUser);
             // Load user profile
             await loadUserProfile(currentUser.id);
           }
@@ -138,11 +153,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     // Listen for auth state changes
     const { data: { subscription } } = subscriptions.onAuthStateChange(async (event, session) => {
-      console.log('Auth state changed:', event, session);
+      console.log('🔄 Auth state changed:', event, session ? 'Session exists' : 'No session');
       
       if (isMounted) {
         setSession(session);
-        setUser(session?.user ?? null);
+        setUser(session?.user as AuthUser ?? null);
         cacheSession(session);
 
         if (session?.user) {
@@ -164,14 +179,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
     };
   }, [loadCachedData, cacheSession, cacheProfile, loadUserProfile]);
 
-  // Subscribe to profile changes
+  // Subscribe to profile changes (only for Supabase)
   useEffect(() => {
-    if (!user?.id) return;
+    if (!user?.id || !isSupabaseConfigured) return;
 
     const profileSubscription = subscriptions.subscribeToProfile(
       user.id,
       (payload) => {
-        console.log('Profile changed:', payload);
+        console.log('🔄 Profile changed:', payload);
         if (payload.eventType === 'UPDATE') {
           setProfile(payload.new);
           cacheProfile(payload.new);
@@ -184,10 +199,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
     };
   }, [user?.id, cacheProfile]);
 
-  // Authentication functions
+  // Authentication functions with improved error handling
   const signUp = async (email: string, password: string, fullName: string) => {
     setLoading(true);
     try {
+      console.log('🔄 Attempting signup:', { email, fullName, mode: isSupabaseConfigured ? 'Supabase' : 'Mock' });
+      
       const { data, error } = await authHelpers.signUp(email, password, fullName);
       
       if (!error && data.user) {
@@ -195,9 +212,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
         await authHelpers.createUserProfile(data.user.id, email, fullName);
       }
       
+      if (error) {
+        console.error('❌ Signup error:', error);
+      } else {
+        console.log('✅ Signup successful:', data.user?.email);
+      }
+      
       return { error };
     } catch (error: any) {
-      return { error };
+      console.error('❌ Signup exception:', error);
+      return { error: { message: error.message || 'An unexpected error occurred during signup' } };
     } finally {
       setLoading(false);
     }
@@ -206,10 +230,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const signIn = async (email: string, password: string) => {
     setLoading(true);
     try {
+      console.log('🔄 Attempting signin:', { email, mode: isSupabaseConfigured ? 'Supabase' : 'Mock' });
+      
       const { error } = await authHelpers.signIn(email, password);
+      
+      if (error) {
+        console.error('❌ Signin error:', error);
+      } else {
+        console.log('✅ Signin successful:', email);
+      }
+      
       return { error };
     } catch (error: any) {
-      return { error };
+      console.error('❌ Signin exception:', error);
+      return { error: { message: error.message || 'An unexpected error occurred during login' } };
     } finally {
       setLoading(false);
     }
@@ -218,10 +252,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const signInWithOAuth = async (provider: 'google' | 'github' | 'apple' | 'facebook') => {
     setLoading(true);
     try {
+      console.log('🔄 Attempting OAuth signin:', { provider, mode: isSupabaseConfigured ? 'Supabase' : 'Mock' });
+      
       const { error } = await authHelpers.signInWithOAuth(provider);
+      
+      if (error) {
+        console.error('❌ OAuth error:', error);
+      } else {
+        console.log('✅ OAuth successful:', provider);
+      }
+      
       return { error };
     } catch (error: any) {
-      return { error };
+      console.error('❌ OAuth exception:', error);
+      return { error: { message: error.message || `An unexpected error occurred with ${provider} authentication` } };
     } finally {
       setLoading(false);
     }
@@ -230,10 +274,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const signOut = async () => {
     setLoading(true);
     try {
+      console.log('🔄 Attempting signout');
+      
       const { error } = await authHelpers.signOut();
+      
+      if (error) {
+        console.error('❌ Signout error:', error);
+      } else {
+        console.log('✅ Signout successful');
+      }
+      
       return { error };
     } catch (error: any) {
-      return { error };
+      console.error('❌ Signout exception:', error);
+      return { error: { message: error.message || 'An unexpected error occurred during logout' } };
     } finally {
       setLoading(false);
     }
@@ -241,19 +295,39 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const resetPassword = async (email: string) => {
     try {
+      console.log('🔄 Attempting password reset:', { email, mode: isSupabaseConfigured ? 'Supabase' : 'Mock' });
+      
       const { error } = await authHelpers.resetPassword(email);
+      
+      if (error) {
+        console.error('❌ Password reset error:', error);
+      } else {
+        console.log('✅ Password reset successful:', email);
+      }
+      
       return { error };
     } catch (error: any) {
-      return { error };
+      console.error('❌ Password reset exception:', error);
+      return { error: { message: error.message || 'An unexpected error occurred during password reset' } };
     }
   };
 
   const updatePassword = async (password: string) => {
     try {
+      console.log('🔄 Attempting password update');
+      
       const { error } = await authHelpers.updatePassword(password);
+      
+      if (error) {
+        console.error('❌ Password update error:', error);
+      } else {
+        console.log('✅ Password update successful');
+      }
+      
       return { error };
     } catch (error: any) {
-      return { error };
+      console.error('❌ Password update exception:', error);
+      return { error: { message: error.message || 'An unexpected error occurred during password update' } };
     }
   };
 
@@ -261,6 +335,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     if (!user?.id) return { error: new Error('No authenticated user') };
     
     try {
+      console.log('🔄 Attempting profile update:', updates);
+      
       const { data, error } = await authHelpers.updateUserProfile(user.id, {
         ...updates,
         updated_at: new Date().toISOString(),
@@ -269,16 +345,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (!error && data) {
         setProfile(data);
         cacheProfile(data);
+        console.log('✅ Profile update successful');
+      } else if (error) {
+        console.error('❌ Profile update error:', error);
       }
       
       return { error };
     } catch (error: any) {
-      return { error };
+      console.error('❌ Profile update exception:', error);
+      return { error: { message: error.message || 'An unexpected error occurred during profile update' } };
     }
   };
 
   const refreshProfile = async () => {
     if (!user?.id) return;
+    console.log('🔄 Refreshing profile');
     await loadUserProfile(user.id);
   };
 
@@ -288,6 +369,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
     session,
     profile,
     loading,
+    
+    // Configuration
+    isSupabaseConfigured,
     
     // Actions
     signUp,
