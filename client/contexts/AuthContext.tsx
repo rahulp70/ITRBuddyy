@@ -203,7 +203,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const signUp = async (email: string, password: string, fullName: string) => {
     setLoading(true);
     try {
-      console.log('���� Attempting signup:', { email, fullName, mode: isSupabaseConfigured ? 'Supabase' : 'Mock' });
+      console.log('🔄 Attempting signup:', { email, fullName, mode: isSupabaseConfigured ? 'Supabase' : 'Mock' });
 
       const { data, error } = await authHelpers.signUp(email, password, fullName);
 
@@ -284,19 +284,22 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setLoading(true);
     try {
       console.log('🔄 Attempting signout');
-      
+
       const { error } = await authHelpers.signOut();
-      
+
       if (error) {
         console.error('❌ Signout error:', error);
+        // Ensure error has proper message format
+        const errorMessage = error?.message || (typeof error === 'string' ? error : 'An error occurred during logout');
+        return { error: { message: errorMessage } };
       } else {
         console.log('✅ Signout successful');
       }
-      
-      return { error };
+
+      return { error: null };
     } catch (error: any) {
       console.error('❌ Signout exception:', error);
-      return { error: { message: error.message || 'An unexpected error occurred during logout' } };
+      return { error: { message: error?.message || 'An unexpected error occurred during logout' } };
     } finally {
       setLoading(false);
     }
