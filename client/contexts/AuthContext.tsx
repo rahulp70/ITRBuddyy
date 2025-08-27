@@ -308,38 +308,44 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const resetPassword = async (email: string) => {
     try {
       console.log('🔄 Attempting password reset:', { email, mode: isSupabaseConfigured ? 'Supabase' : 'Mock' });
-      
+
       const { error } = await authHelpers.resetPassword(email);
-      
+
       if (error) {
         console.error('❌ Password reset error:', error);
+        // Ensure error has proper message format
+        const errorMessage = error?.message || (typeof error === 'string' ? error : 'An error occurred during password reset');
+        return { error: { message: errorMessage } };
       } else {
         console.log('✅ Password reset successful:', email);
       }
-      
-      return { error };
+
+      return { error: null };
     } catch (error: any) {
       console.error('❌ Password reset exception:', error);
-      return { error: { message: error.message || 'An unexpected error occurred during password reset' } };
+      return { error: { message: error?.message || 'An unexpected error occurred during password reset' } };
     }
   };
 
   const updatePassword = async (password: string) => {
     try {
       console.log('🔄 Attempting password update');
-      
+
       const { error } = await authHelpers.updatePassword(password);
-      
+
       if (error) {
         console.error('❌ Password update error:', error);
+        // Ensure error has proper message format
+        const errorMessage = error?.message || (typeof error === 'string' ? error : 'An error occurred during password update');
+        return { error: { message: errorMessage } };
       } else {
         console.log('✅ Password update successful');
       }
-      
-      return { error };
+
+      return { error: null };
     } catch (error: any) {
       console.error('❌ Password update exception:', error);
-      return { error: { message: error.message || 'An unexpected error occurred during password update' } };
+      return { error: { message: error?.message || 'An unexpected error occurred during password update' } };
     }
   };
 
