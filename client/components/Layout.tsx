@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { LogOut, Settings, User, Shield } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { ConfigNotice, AuthModeIndicator } from "./ConfigNotice";
 
 interface LayoutProps {
   children: React.ReactNode;
