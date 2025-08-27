@@ -231,19 +231,22 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setLoading(true);
     try {
       console.log('🔄 Attempting signin:', { email, mode: isSupabaseConfigured ? 'Supabase' : 'Mock' });
-      
+
       const { error } = await authHelpers.signIn(email, password);
-      
+
       if (error) {
         console.error('❌ Signin error:', error);
+        // Ensure error has proper message format
+        const errorMessage = error?.message || (typeof error === 'string' ? error : 'An error occurred during login');
+        return { error: { message: errorMessage } };
       } else {
         console.log('✅ Signin successful:', email);
       }
-      
-      return { error };
+
+      return { error: null };
     } catch (error: any) {
       console.error('❌ Signin exception:', error);
-      return { error: { message: error.message || 'An unexpected error occurred during login' } };
+      return { error: { message: error?.message || 'An unexpected error occurred during login' } };
     } finally {
       setLoading(false);
     }
