@@ -1,32 +1,12 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import {
-  FileText,
-  Calculator,
-  TrendingUp,
-  Clock,
-  User,
-  Mail,
-  Calendar,
-  Shield,
-  LogOut,
-  Settings,
-  Download,
-  Upload,
-  CheckCircle,
-  AlertCircle,
-  Loader2,
-  Eye
-} from "lucide-react";
+import { Mail, Calendar, Shield, LogOut, Settings, CheckCircle, Loader2 } from "lucide-react";
 import Layout from "@/components/Layout";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { useAuth } from "@/contexts/AuthContext";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { useNavigate } from "react-router-dom";
 import DocumentManager from "@/components/DocumentManager";
 import StatsCards from "@/components/StatsCards";
 import ITRRecommendation from "@/components/ITRRecommendation";
