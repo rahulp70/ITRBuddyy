@@ -414,4 +414,8 @@ router.delete("/:id", (req: Request, res: Response) => {
   return res.json({ ok: true });
 });
 
+export function getAllDocs() {
+  return Array.from(docs.values());
+}
+
 export default router;

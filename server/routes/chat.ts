@@ -6,18 +6,32 @@ const router = Router();
 type Msg = { id: string; role: "user" | "assistant"; text: string; ts: number };
 const conversations = new Map<string, Msg[]>();
 
-function replyFor(input: string): string {
+import { getAllDocs } from "./documents";
+
+function buildUserContext(userId: string) {
+  const docs = getAllDocs().filter((d) => d.userId === userId && d.status !== "error");
+  if (!docs.length) return "No uploaded docs in context.";
+  const parts = docs.map((d) => {
+    const sum = d.extracted?.summary;
+    const fields = d.extracted?.fields?.slice(0, 8)?.map((f) => `${f.name}: ${f.value} (${Math.round(f.confidence * 100)}%)`).join(", ") || "";
+    return `• ${d.docTypeLabel || d.name} – status: ${d.status}${sum ? ` | income: ${sum.income}, deductions: ${sum.deductions}, taxable: ${sum.taxableIncome}` : ""}${fields ? ` | fields: ${fields}` : ""}`;
+  });
+  return parts.join("\n");
+}
+
+function replyFor(input: string, userId = "dev-user"): string {
   const q = input.toLowerCase();
+  const ctx = buildUserContext(userId);
   if (q.includes("upload")) {
-    return "To upload documents, click 'Choose Files' or drag-and-drop PDFs/JPG/PNG. Max 10MB each.";
+    return `**Upload Help** 📄\n\nClick 'Choose Files' or drag-and-drop PDF/JPG/PNG. Max 10MB each.\n\n_Current docs in context:_\n${ctx}`;
   }
   if (q.includes("80c")) {
-    return "Section 80C allows deductions up to the limit for investments like PPF, ELSS, and certain expenses.";
+    return `**80C Basics** 💡\n\nYou can claim eligible investments (PPF/ELSS/LIC etc.) up to the limit.\n\n_Context snapshot:_\n${ctx}`;
   }
   if (q.includes("status")) {
-    return "You can view processing status in your Dashboard under 'Uploaded Documents'.";
+    return `**Processing Status** ⏱️\n\nCheck Dashboard → Uploaded Documents.\n\n_Current context:_\n${ctx}`;
   }
-  return "I can help with uploads, deductions, and ITR review. Ask me anything!";
+  return `**How I can help** 🤝\n- Uploads & extraction\n- Deductions & sections\n- ITR review & validation\n\n_Current context:_\n${ctx}`;
 }
 
 router.post("/", (req: Request, res: Response) => {
@@ -58,7 +72,7 @@ router.get("/stream", async (req: Request, res: Response) => {
 
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
-    const canned = replyFor(q);
+    const canned = replyFor(q, "dev-user");
     const bot = { id: randomUUID(), role: "assistant" as const, text: canned, ts: Date.now() };
     history.push(bot);
     conversations.set(conversationId, history);
@@ -68,8 +82,11 @@ router.get("/stream", async (req: Request, res: Response) => {
   }
 
   try {
+    const userId = "dev-user";
+    const userCtx = buildUserContext(userId);
     const messages = [
-      { role: "system", content: "You are ITR Buddy, a helpful tax assistant for Indian income taxes." },
+      { role: "system", content: "You are ITR Buddy, a helpful tax assistant for Indian income taxes. Format replies with Markdown. Use emojis where helpful (🎉, ⚠️, 💡). Be concise and professional." },
+      { role: "system", content: `User context (docs & extracted data):\n${userCtx}` },
       ...history.map((m) => ({ role: m.role, content: m.text })),
     ];
 
