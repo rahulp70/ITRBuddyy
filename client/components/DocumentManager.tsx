@@ -478,9 +478,10 @@ export default function DocumentManager({ className }: { className?: string }) {
                           </div>
                         ) : d.keySummary ? (
                           <div className="text-xs space-y-1">
-                            {Object.entries(d.keySummary).map(([k, v]) => (
+                            {Object.entries(d.keySummary).slice(0,3).map(([k, v]) => (
                               <div key={k} className="flex items-center gap-2"><CheckCircle className="w-3 h-3 text-success-600" /> {k}: {typeof v === "number" ? `₹${(v as number).toLocaleString()}` : String(v)}</div>
                             ))}
+                            {Object.entries(d.keySummary).length > 3 && <div className="text-[11px] text-gray-500">+ more</div>}
                           </div>
                         ) : (
                           <span className="text-gray-400 text-sm">—</span>
