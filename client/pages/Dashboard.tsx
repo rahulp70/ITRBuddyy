@@ -34,9 +34,6 @@ function DashboardContent() {
   const [isSigningOut, setIsSigningOut] = useState(false);
   const navigate = useNavigate();
 
-  // Data preview dialog (kept for potential future use)
-  const [previewOpen, setPreviewOpen] = useState(false);
-  const [previewDoc, setPreviewDoc] = useState<any | null>(null);
 
   const handleSignOut = async () => {
     setIsSigningOut(true);
@@ -77,52 +74,6 @@ function DashboardContent() {
   ];
 
 
-  const onViewData = (doc: Document) => {
-    setPreviewDoc(doc);
-    setPreviewOpen(true);
-  };
-
-  const onViewITRForm = (doc: Document) => {
-    navigate(`/itr/review/${doc.id}`);
-  };
-
-  const onDownload = (doc: Document) => {
-    const file = filesById[doc.id];
-    if (!file) return;
-    const url = URL.createObjectURL(file);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = doc.name;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-  };
-
-  const onDelete = (id: string) => {
-    setDocuments((prev) => prev.filter((d) => d.id !== id));
-    setFilesById((prev) => {
-      const { [id]: _, ...rest } = prev;
-      return rest;
-    });
-  };
-
-  const onReprocess = (id: string) => {
-    setDocuments((prev) => prev.map((d) => (d.id === id ? { ...d, status: 'processing', error: undefined } : d)));
-    setTimeout(() => {
-      setDocuments((prev) =>
-        prev.map((d) =>
-          d.id === id
-            ? {
-                ...d,
-                status: 'completed',
-                extractedData: d.extractedData || { income: 980000, deductions: 150000, taxableIncome: 830000 },
-              }
-            : d
-        )
-      );
-    }, 1200);
-  };
 
   if (isLoading) {
     return (
@@ -216,16 +167,7 @@ function DashboardContent() {
           ))}
         </div>
 
-        {/* Document List/Table */}
-        <DocumentList
-          documents={documents}
-          onViewData={onViewData}
-          onViewITRForm={onViewITRForm}
-          onDownload={onDownload}
-          onDelete={onDelete}
-          onReprocess={onReprocess}
-          className="mb-8"
-        />
+        {/* Document list is now handled inside DocumentManager */}
 
         {/* Authentication Mode Info */}
         {!isSupabaseConfigured && (
@@ -238,25 +180,6 @@ function DashboardContent() {
           </Alert>
         )}
 
-        {/* Data Preview Dialog */}
-        <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle className="flex items-center"><Eye className="w-4 h-4 mr-2" /> Extracted Data</DialogTitle>
-            </DialogHeader>
-            <div className="text-sm">
-              {previewDoc?.extractedData ? (
-                <div className="space-y-1">
-                  <div>Income: ₹{previewDoc.extractedData.income.toLocaleString()}</div>
-                  <div>Deductions: ₹{previewDoc.extractedData.deductions.toLocaleString()}</div>
-                  <div>Taxable: ₹{previewDoc.extractedData.taxableIncome.toLocaleString()}</div>
-                </div>
-              ) : (
-                <div className="text-gray-500">No extracted data available.</div>
-              )}
-            </div>
-          </DialogContent>
-        </Dialog>
       </div>
     </div>
   );
