@@ -186,14 +186,8 @@ const Layout = ({ children }: LayoutProps) => {
         {children}
       </main>
 
-      {/* Floating Chatbot on dashboard-related pages */}
-      {location.pathname.startsWith("/dashboard") || location.pathname.startsWith("/itr") ? (
-        <>
-          {/** Chatbot FAB available on dashboard pages */}
-          {/* eslint-disable-next-line react/jsx-no-undef */}
-          <ChatbotFab />
-        </>
-      ) : null}
+      {/* Floating Chatbot available on all pages */}
+      <ChatbotFab />
 
       {/* Footer */}
       <footer className="bg-white border-t border-gray-200">
