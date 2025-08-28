@@ -169,9 +169,14 @@ function extractHeuristics(text: string, docType: string): ExtractedPayload {
 
   if (/form\s*16/i.test(docType) || /salary\s*slip/i.test(docType)) {
     findAmount(/(gross\s*salary|total\s*salary|income\s*from\s*salary)/i, "Salary", 0.9);
+    findAmount(/(basic\s*salary)/i, "Basic Salary", 0.8);
+    findAmount(/\bhra\b|house\s*rental\s*allowance/i, "HRA", 0.8);
+    findAmount(/(conveyance|transport).*allowance/i, "Conveyance Allowance", 0.75);
+    findAmount(/(other\s*allowances|special\s*allowance)/i, "Other Allowances", 0.7);
     findAmount(/(taxable\s*income|total\s*taxable)/i, "Taxable Income", 0.85);
     findAmount(/(tds|tax\s+deducted)/i, "TDS", 0.8);
     findAmount(/(deduction|80c|80d|80tta|investments)/i, "Deductions", 0.7);
+    findAmount(/(net\s*pay|net\s*salary)/i, "Net Salary", 0.8);
   } else if (/26as|ais/i.test(docType)) {
     findAmount(/(tds|tax\s+deducted)/i, "TDS", 0.9);
     findAmount(/(total\s*income|reported\s*income)/i, "Reported Income", 0.8);
