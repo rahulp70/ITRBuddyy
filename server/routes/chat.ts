@@ -128,11 +128,13 @@ router.get("/stream", async (req: Request, res: Response) => {
   try {
     const userId = "dev-user";
     const userCtx = buildUserContext(userId);
+    const preTips = /80c|80d|deduction|tip|save tax/i.test(q) ? generateDeductionTips(userId) : "";
     const messages = [
       { role: "system", content: "You are ITR Buddy, a helpful tax assistant for Indian income taxes. Format replies with Markdown. Use emojis where helpful (🎉, ⚠️, 💡). Be concise and professional." },
       { role: "system", content: `User context (docs & extracted data):\n${userCtx}` },
+      preTips ? { role: "system", content: `Precomputed personalized deduction insights (use and elaborate):\n${preTips}` } : null,
       ...history.map((m) => ({ role: m.role, content: m.text })),
-    ];
+    ].filter(Boolean) as any[];
 
     const upstream = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
