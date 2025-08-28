@@ -16,6 +16,22 @@ interface ItrForm {
 
 const forms = new Map<string, ItrForm>();
 
+function validate(form: ItrForm) {
+  const issues: { field: string; code: string; message: string }[] = [];
+  const totalIncome = form.income.salary + form.income.interest + form.income.rentalIncome + form.income.otherIncome;
+  const totalDeductions = form.deductions.section80C + form.deductions.section80D + form.deductions.charitableDonations;
+  if (form.deductions.section80C > 150000) {
+    issues.push({ field: "deductions.section80C", code: "LIMIT_80C", message: "Section 80C exceeds limit (1,50,000)." });
+  }
+  if (form.taxesPaid.tds > totalIncome) {
+    issues.push({ field: "taxesPaid.tds", code: "TDS_GT_INCOME", message: "TDS cannot exceed total income." });
+  }
+  if (totalDeductions > totalIncome) {
+    issues.push({ field: "deductions.section80C", code: "DEDUCTIONS_GT_INCOME", message: "Total deductions exceed total income." });
+  }
+  return { issues, totals: { totalIncome, totalDeductions } };
+}
+
 router.get("/:id", requireAuth as any, (req: Request, res: Response) => {
   const userId = (req as any).user?.sub as string;
   const id = req.params.id;
@@ -46,13 +62,22 @@ router.put("/:id", requireAuth as any, (req: Request, res: Response) => {
   return res.json(updated);
 });
 
+router.post("/:id/validate", requireAuth as any, (req: Request, res: Response) => {
+  const id = req.params.id;
+  const form = forms.get(id);
+  if (!form) return res.status(404).json({ error: "Form not found" });
+  const result = validate(form);
+  return res.json(result);
+});
+
 router.post("/:id/submit", requireAuth as any, (req: Request, res: Response) => {
   const id = req.params.id;
   const existing = forms.get(id);
   if (!existing) return res.status(404).json({ error: "Form not found" });
+  const result = validate(existing);
   existing.status = "submitted";
   forms.set(id, existing);
-  return res.json({ id, status: existing.status, message: "Submitted for AI validation" });
+  return res.json({ id, status: existing.status, message: "Submitted for AI validation", ...result });
 });
 
 export default router;
