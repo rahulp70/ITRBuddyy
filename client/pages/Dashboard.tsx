@@ -76,58 +76,6 @@ function DashboardContent() {
     }
   ];
 
-  const onFilesUploaded = async (files: File[]) => {
-    for (const file of files) {
-      const formData = new FormData();
-      formData.append("file", file);
-      try {
-        const res = await fetch("/api/documents/upload", { method: "POST", body: formData });
-        if (!res.ok) throw new Error("upload failed");
-        const data = await res.json();
-        const doc: Document = {
-          id: data.id,
-          name: data.name,
-          type: data.type,
-          size: data.size,
-          uploadDate: new Date(),
-          status: data.status,
-          category: file.name.toLowerCase().includes('form16') ? 'form16' : file.type.startsWith('image/') ? 'investment' : 'other',
-        };
-        setDocuments((prev) => [doc, ...prev]);
-        setFilesById((prev) => ({ ...prev, [doc.id]: file }));
-
-        // Poll status until completed/error
-        const poll = async () => {
-          try {
-            const sres = await fetch(`/api/documents/${doc.id}/status`);
-            const sdata = await sres.json();
-            setDocuments((prev) => prev.map((d) => d.id === doc.id ? { ...d, status: sdata.status, error: sdata.error } : d));
-            if (sdata.status === 'processing') {
-              setTimeout(poll, 800);
-            } else if (sdata.status === 'completed') {
-              const dres = await fetch(`/api/documents/${doc.id}/data`);
-              const djson = await dres.json();
-              if (djson.extractedData) {
-                setDocuments((prev) => prev.map((d) => d.id === doc.id ? { ...d, extractedData: djson.extractedData } : d));
-              }
-            }
-          } catch {}
-        };
-        poll();
-      } catch (e) {
-        const failed: Document = {
-          id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-          name: file.name,
-          type: file.type,
-          size: file.size,
-          uploadDate: new Date(),
-          status: 'error',
-          error: 'Upload failed',
-        } as Document;
-        setDocuments((prev) => [failed, ...prev]);
-      }
-    }
-  };
 
   const onViewData = (doc: Document) => {
     setPreviewDoc(doc);
