@@ -218,18 +218,93 @@ export default function DocumentManager({ className }: { className?: string }) {
   const [editDocId, setEditDocId] = useState<string | null>(null);
   const editDoc = docs.find((d) => d.id === editDocId) || null;
   const [editValues, setEditValues] = useState<{ [k: string]: string | number }>({});
+  const [editErrors, setEditErrors] = useState<Record<string, string>>({});
+
+  const globalFields = useMemo(() => {
+    const map = new Map<string, string | number>();
+    const form16 = docs.find((d) => d.docType === "Form 16" && d.fields && d.status === "extracted");
+    const source = form16 || docs.find((d) => d.fields && d.status === "extracted");
+    if (source?.fields) {
+      for (const f of source.fields) map.set(f.name, f.value);
+    }
+    return map;
+  }, [docs]);
+
+  function manualFieldDefs(docType: DocType): { label: string; name: string; type: "text" | "number"; required?: boolean }[] {
+    const base: { label: string; name: string; type: "text" | "number"; required?: boolean }[] = [];
+    if (docType === "Form 16") {
+      base.push({ label: "PAN", name: "PAN", type: "text", required: true });
+      base.push({ label: "Employer", name: "Employer", type: "text", required: true });
+      base.push({ label: "Gross Salary", name: "Salary", type: "number", required: true });
+      base.push({ label: "TDS Deducted", name: "TDS", type: "number" });
+      base.push({ label: "Deductions (80C/80D etc)", name: "Deductions", type: "number" });
+      base.push({ label: "Taxable Income", name: "Taxable Income", type: "number" });
+    } else if (docType === "Form 26AS/AIS") {
+      if (!globalFields.has("PAN")) base.push({ label: "PAN", name: "PAN", type: "text", required: true });
+      base.push({ label: "TDS", name: "TDS", type: "number" });
+      base.push({ label: "Taxable Income", name: "Taxable Income", type: "number" });
+    } else if (docType === "Salary Slip") {
+      if (!globalFields.has("PAN")) base.push({ label: "PAN", name: "PAN", type: "text" });
+      if (!globalFields.has("Employer")) base.push({ label: "Employer", name: "Employer", type: "text" });
+      base.push({ label: "Basic Salary", name: "Basic Salary", type: "number" });
+      base.push({ label: "HRA", name: "HRA", type: "number" });
+      base.push({ label: "Conveyance Allowance", name: "Conveyance Allowance", type: "number" });
+      base.push({ label: "Other Allowances", name: "Other Allowances", type: "number" });
+      base.push({ label: "Gross Salary", name: "Salary", type: "number", required: true });
+      base.push({ label: "Deductions", name: "Deductions", type: "number" });
+      base.push({ label: "Net Salary", name: "Net Salary", type: "number" });
+    } else if (docType === "Bank Statement") {
+      base.push({ label: "Interest Income", name: "Interest Income", type: "number", required: true });
+    } else if (docType === "Investment Proof") {
+      base.push({ label: "Amount Invested (80C)", name: "Eligible 80C", type: "number", required: true });
+    } else if (docType === "Rent Receipt") {
+      base.push({ label: "Total Rent Paid", name: "Deductions", type: "number", required: true });
+    } else if (docType === "Loan Statement") {
+      base.push({ label: "Interest Paid", name: "Interest Paid", type: "number", required: true });
+    } else if (docType === "Medical Bill") {
+      base.push({ label: "Medical Expense", name: "Medical Expense", type: "number", required: true });
+    } else if (docType === "Capital Gains Report") {
+      base.push({ label: "Capital Gains", name: "Capital Gains", type: "number" });
+      base.push({ label: "Taxable Income", name: "Taxable Income", type: "number" });
+    } else if (docType === "Business Income Document") {
+      base.push({ label: "Business Income", name: "Business Income", type: "number", required: true });
+      base.push({ label: "Expenses", name: "Deductions", type: "number" });
+    }
+    return base;
+  }
+
   useEffect(() => {
     if (!editDoc) return;
+    const defs = manualFieldDefs(editDoc.docType);
     const initial: { [k: string]: string | number } = {};
-    ["PAN", "Employer", "Salary", "TDS", "Deductions", "Taxable Income"].forEach((k) => {
-      const fv = editDoc.fields?.find((f) => f.name === k)?.value;
-      if (fv != null) initial[k] = fv as any;
-    });
+    for (const def of defs) {
+      const fv = editDoc.fields?.find((f) => f.name === def.name)?.value ?? globalFields.get(def.name);
+      if (fv != null) initial[def.name] = fv as any;
+    }
     setEditValues(initial);
+    setEditErrors({});
   }, [editDocId]);
+
+  function validateManual(defs: ReturnType<typeof manualFieldDefs>) {
+    const errs: Record<string, string> = {};
+    for (const def of defs) {
+      const v = editValues[def.name];
+      if (def.required && (v === undefined || v === null || String(v).trim() === "")) {
+        errs[def.name] = "Required";
+      }
+      if (def.type === "number" && v !== undefined && v !== null && String(v).trim() !== "") {
+        const n = Number(v);
+        if (!Number.isFinite(n) || n < 0) errs[def.name] = "Enter a valid number";
+      }
+    }
+    setEditErrors(errs);
+    return Object.keys(errs).length === 0;
+  }
 
   async function saveManualCorrections() {
     if (!editDoc) return;
+    const defs = manualFieldDefs(editDoc.docType);
+    if (!validateManual(defs)) return;
     const payload = {
       fields: Object.entries(editValues).map(([name, value]) => ({ name, value })),
     };
