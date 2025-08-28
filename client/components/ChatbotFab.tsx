@@ -192,6 +192,7 @@ export default function ChatbotFab() {
             </div>
             <div className="p-3 border-t flex items-center space-x-2">
               <Input
+                ref={inputRef}
                 placeholder="Ask about taxes, deductions, forms..."
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
