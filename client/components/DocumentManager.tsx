@@ -558,7 +558,18 @@ export default function DocumentManager({ className }: { className?: string }) {
                                       aria-required={def.required}
                                       aria-invalid={!!editErrors[def.name]}
                                       value={String(editValues[def.name] ?? "")}
-                                      onChange={(e) => setEditValues((prev) => ({ ...prev, [def.name]: def.type === "text" ? e.target.value : Number(e.target.value.replace(/[^\d]/g, "")) }))}
+                                      onChange={(e) => {
+                                        const val = def.type === "text" ? e.target.value : Number(e.target.value.replace(/[^\d]/g, ""));
+                                        setEditValues((prev) => {
+                                          const next: any = { ...prev, [def.name]: val };
+                                          if ((def.name === "Salary" || def.name === "Deductions") && (next["Salary"] != null || next["Deductions"] != null)) {
+                                            const s = Number(next["Salary"] || 0);
+                                            const dd = Number(next["Deductions"] || 0);
+                                            next["Taxable Income"] = Math.max(0, s - dd);
+                                          }
+                                          return next;
+                                        });
+                                      }}
                                       placeholder={def.type === "text" ? `Enter ${def.label}` : "0"}
                                       className={editErrors[def.name] ? "border-red-500" : undefined}
                                     />
