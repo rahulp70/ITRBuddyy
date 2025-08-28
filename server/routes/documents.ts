@@ -22,11 +22,18 @@ interface Doc {
 
 const docs = new Map<string, Doc>();
 
+function simpleExtract(name: string) {
+  const lower = name.toLowerCase();
+  const base = 900000 + Math.floor(Math.random() * 150000);
+  const deductions = 150000;
+  const taxableIncome = base - deductions;
+  return { income: base, deductions, taxableIncome };
+}
+
 router.post("/upload", requireAuth as any, upload.single("file"), (req: Request, res: Response) => {
   const file = (req as any).file as Express.Multer.File | undefined;
   if (!file) return res.status(400).json({ error: "file is required" });
-  // @ts-ignore
-  const userId: string = (req.user?.sub as string) || "user";
+  const userId: string = (req as any).user?.sub as string;
 
   const id = randomUUID();
   const doc: Doc = {
@@ -40,22 +47,18 @@ router.post("/upload", requireAuth as any, upload.single("file"), (req: Request,
   };
   docs.set(id, doc);
 
-  // Simulate async processing
+  // Simulate async processing + extraction (replace with OCR + NLP integration)
   setTimeout(() => {
     const d = docs.get(id);
     if (!d) return;
-    const ok = Math.random() < 0.9;
+    const ok = Math.random() < 0.95;
     d.status = ok ? "completed" : "error";
     d.error = ok ? undefined : "OCR failed";
     if (ok) {
-      d.extractedData = {
-        income: 950000 + Math.floor(Math.random() * 50000),
-        deductions: 150000,
-        taxableIncome: 800000 + Math.floor(Math.random() * 50000),
-      };
+      d.extractedData = simpleExtract(d.name);
     }
     docs.set(id, d);
-  }, 800);
+  }, 1000);
 
   return res.status(201).json({ id, status: doc.status, name: doc.name, type: doc.type, size: doc.size });
 });
