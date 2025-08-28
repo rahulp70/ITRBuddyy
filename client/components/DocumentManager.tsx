@@ -311,6 +311,15 @@ export default function DocumentManager({ className }: { className?: string }) {
       if (def.type === "number" && v !== undefined && v !== null && String(v).trim() !== "") {
         const n = Number(v);
         if (!Number.isFinite(n) || n < 0) errs[def.name] = "Enter a valid number";
+        if (def.name === "Eligible 80C" && n > 150000) errs[def.name] = "Max ₹1,50,000 under 80C";
+        if (def.name === "TDS") {
+          const salary = Number(editValues["Salary"] || 0);
+          if (salary && n > salary) errs[def.name] = "TDS cannot exceed Salary";
+        }
+        if (def.name === "Taxable Income") {
+          const salary = Number(editValues["Salary"] || 0);
+          if (salary && n > salary) errs[def.name] = "Taxable Income cannot exceed Salary";
+        }
       }
     }
     setEditErrors(errs);
