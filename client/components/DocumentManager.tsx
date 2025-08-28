@@ -376,32 +376,49 @@ export default function DocumentManager({ className }: { className?: string }) {
                     <div className="flex items-center justify-end gap-2">
                       <Button size="sm" variant="outline" onClick={() => onAskAI(`Explain how to use ${d.docType} in ITR and common mistakes.`)}>Ask AI</Button>
                       {d.status === "extracted" && (
-                        <Dialog open={editDocId === d.id} onOpenChange={(open) => setEditDocId(open ? d.id : null)}>
-                          <DialogTrigger asChild>
-                            <Button size="sm" variant="secondary">Enter details manually</Button>
-                          </DialogTrigger>
-                          <DialogContent>
-                            <DialogHeader>
-                              <DialogTitle>Review and correct fields</DialogTitle>
-                            </DialogHeader>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                              {["PAN", "Employer", "Salary", "TDS", "Deductions", "Taxable Income"].map((k) => (
-                                <div key={k} className="space-y-1">
-                                  <Label>{k}</Label>
-                                  <Input
-                                    value={String(editValues[k] ?? "")}
-                                    onChange={(e) => setEditValues((prev) => ({ ...prev, [k]: k === "PAN" || k === "Employer" ? e.target.value : Number(e.target.value.replace(/[^\d]/g, "")) }))}
-                                    placeholder={k === "PAN" || k === "Employer" ? `Enter ${k}` : "0"}
-                                  />
-                                </div>
-                              ))}
-                            </div>
-                            <div className="flex justify-end gap-2 mt-2">
-                              <Button variant="outline" onClick={() => setEditDocId(null)}>Cancel</Button>
-                              <Button onClick={saveManualCorrections}>Save</Button>
-                            </div>
-                          </DialogContent>
-                        </Dialog>
+                        <>
+                          <Dialog open={editDocId === d.id} onOpenChange={(open) => setEditDocId(open ? d.id : null)}>
+                            <DialogTrigger asChild>
+                              <Button size="sm" variant="secondary">Enter details manually</Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                              <DialogHeader>
+                                <DialogTitle>Review and correct fields</DialogTitle>
+                              </DialogHeader>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                {["PAN", "Employer", "Salary", "TDS", "Deductions", "Taxable Income"].map((k) => (
+                                  <div key={k} className="space-y-1">
+                                    <Label>{k}</Label>
+                                    <Input
+                                      value={String(editValues[k] ?? "")}
+                                      onChange={(e) => setEditValues((prev) => ({ ...prev, [k]: k === "PAN" || k === "Employer" ? e.target.value : Number(e.target.value.replace(/[^\d]/g, "")) }))}
+                                      placeholder={k === "PAN" || k === "Employer" ? `Enter ${k}` : "0"}
+                                    />
+                                  </div>
+                                ))}
+                              </div>
+                              <div className="flex justify-end gap-2 mt-2">
+                                <Button variant="outline" onClick={() => setEditDocId(null)}>Cancel</Button>
+                                <Button onClick={saveManualCorrections}>Save</Button>
+                              </div>
+                            </DialogContent>
+                          </Dialog>
+                          <Button size="sm" variant="outline" onClick={async () => {
+                            const r = await fetch(`/api/documents/${d.id}/json`);
+                            if (r.ok) {
+                              const json = await r.json();
+                              const blob = new Blob([JSON.stringify(json, null, 2)], { type: "application/json" });
+                              const url = URL.createObjectURL(blob);
+                              const a = document.createElement("a");
+                              a.href = url;
+                              a.download = `${d.docType.replace(/\s+/g, "-")}-${d.id}.json`;
+                              document.body.appendChild(a);
+                              a.click();
+                              a.remove();
+                              URL.revokeObjectURL(url);
+                            }
+                          }}>View JSON</Button>
+                        </>
                       )}
                       <Button size="sm" variant="ghost" onClick={() => onAskAI(`How to verify data extracted from ${d.docType}?`)}>
                         <Download className="w-4 h-4" />
