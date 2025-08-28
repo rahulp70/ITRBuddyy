@@ -65,7 +65,7 @@ function DashboardContent() {
     {
       icon: <TrendingUp className="w-6 h-6 text-blue-600" />,
       title: "Completion",
-      value: `${Math.min(100, documents.filter(d=>d.status==='completed').length*20)}%`,
+      value: `—`,
       description: "Progress",
     },
     {
