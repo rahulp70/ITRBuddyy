@@ -159,9 +159,13 @@ export default function ChatbotFab() {
               <div className="space-y-3">
                 {messages.map((m) => (
                   <div key={m.id} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-                    <div className={`px-3 py-2 rounded-lg text-sm max-w-[80%] ${m.role === "user" ? "bg-brand-600 text-white" : "bg-gray-100"}`}>
-                      {m.text}
-                    </div>
+                    {m.role === "user" ? (
+                      <div className={`px-3 py-2 rounded-lg text-sm max-w-[80%] bg-brand-600 text-white`}>
+                        {m.text}
+                      </div>
+                    ) : (
+                      <div className={`px-3 py-2 rounded-lg text-sm max-w-[80%] bg-gray-100 prose prose-sm`} dangerouslySetInnerHTML={{ __html: marked.parse(m.text) as string }} />
+                    )}
                   </div>
                 ))}
               </div>
