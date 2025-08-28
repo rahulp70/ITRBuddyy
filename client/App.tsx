@@ -59,6 +59,14 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/itr/review/:documentId"
+              element={
+                <ProtectedRoute requireAuth={true}>
+                  <ITRReview />
+                </ProtectedRoute>
+              }
+            />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
