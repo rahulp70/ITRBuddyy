@@ -101,6 +101,14 @@ export default function DocumentManager({ className }: { className?: string }) {
     e.preventDefault();
     if (!file || !selectedType) return;
 
+    const existing = docs.find((d) => d.docType === selectedType);
+    if (existing) {
+      const ok = window.confirm(`${selectedType} already exists. Replace it with the new upload?`);
+      if (!ok) return;
+      try { await fetch(`/api/documents/${existing.id}`, { method: "DELETE" }); } catch {}
+      setDocs((prev) => prev.filter((d) => d.id !== existing.id));
+    }
+
     const tempId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const pending: DocRecord = {
       id: tempId,
