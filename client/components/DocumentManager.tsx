@@ -11,7 +11,6 @@ import { Separator } from "@/components/ui/separator";
 import { Download, FileText, Upload, CheckCircle, AlertCircle, MessageCircleQuestion, ListChecks } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { useEffect, useMemo, useState } from "react";
 
 export type DocType =
   | "Form 16"
