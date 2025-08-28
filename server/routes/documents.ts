@@ -275,4 +275,29 @@ router.get("/:id/data", (req, res) => {
   return res.json({ id: d.id, extractedData: legacy, extracted, issues });
 });
 
+router.post("/:id/feedback", (req: Request, res: Response) => {
+  const d = docs.get(req.params.id);
+  if (!d) return res.status(404).json({ error: "Not found" });
+  const fields = Array.isArray(req.body?.fields) ? req.body.fields : [];
+  if (!d.extracted) return res.status(400).json({ error: "no-extracted-data" });
+  for (const f of fields) {
+    if (!f || typeof f.name !== "string") continue;
+    const idx = d.extracted.fields.findIndex((x) => x.name.toLowerCase() === f.name.toLowerCase());
+    const val = typeof f.value === "number" ? f.value : isNaN(Number(f.value)) ? String(f.value) : Number(f.value);
+    const upd = { name: f.name, value: val, confidence: 1.0, source: "user:manual" } as any;
+    if (idx >= 0) d.extracted.fields[idx] = upd;
+    else d.extracted.fields.push(upd);
+  }
+  const get = (n: string): number => Number(d.extracted!.fields.find((f) => f.name.toLowerCase() === n.toLowerCase())?.value ?? 0);
+  const income = get("Salary") || get("Reported Income") || d.extracted!.summary.income;
+  const deductions = get("Deductions") || get("Eligible 80C") || d.extracted!.summary.deductions;
+  const taxableIncome = get("Taxable Income") || Math.max(0, income - deductions);
+  d.extracted.summary = { income, deductions, taxableIncome };
+  d.extracted.quality = "good";
+  d.extracted.messages = d.extracted.messages || [];
+  d.extracted.messages = d.extracted.messages.filter((m) => !/unable to extract/i.test(m));
+  docs.set(d.id, d);
+  return res.json({ ok: true });
+});
+
 export default router;
