@@ -1,5 +1,4 @@
 import { Router, Request, Response } from "express";
-import { requireAuth } from "./auth";
 import { randomUUID } from "crypto";
 
 const router = Router();
@@ -21,7 +20,7 @@ function replyFor(input: string): string {
   return "I can help with uploads, deductions, and ITR review. Ask me anything!";
 }
 
-router.post("/", requireAuth as any, (req: Request, res: Response) => {
+router.post("/", (req: Request, res: Response) => {
   const { conversationId, message } = req.body || {};
   if (!message || typeof message !== "string") {
     return res.status(400).json({ error: "message is required" });
