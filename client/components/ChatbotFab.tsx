@@ -56,20 +56,55 @@ export default function ChatbotFab() {
   };
 
   const sendToBackend = async (text: string) => {
+    const q = encodeURIComponent(text);
+    const id = convRef.current ? encodeURIComponent(convRef.current) : "";
+    const url = `/api/chat/stream?q=${q}${id ? `&conversationId=${id}` : ""}`;
     try {
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ conversationId: convRef.current, message: text }),
+      const es = new EventSource(url);
+      let assistantId: string | null = null;
+
+      es.addEventListener("meta", (e: MessageEvent) => {
+        try {
+          const meta = JSON.parse((e as MessageEvent).data);
+          if (meta.conversationId) {
+            convRef.current = meta.conversationId;
+            sessionStorage.setItem(STORAGE_CONV, convRef.current);
+          }
+        } catch {}
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      convRef.current = data.conversationId;
-      sessionStorage.setItem(STORAGE_CONV, convRef.current);
-      const msgs: ChatMessage[] = data.messages;
-      setMessages(msgs);
+
+      es.onmessage = (ev) => {
+        try {
+          const data = JSON.parse(ev.data);
+          if (data.error) {
+            es.close();
+            appendLocal("assistant", canned(text));
+            return;
+          }
+          if (data.delta) {
+            setMessages((prev) => {
+              const copy = [...prev];
+              if (!assistantId) {
+                assistantId = `${Date.now()}-assistant`;
+                copy.push({ id: assistantId, role: "assistant", text: data.delta });
+              } else {
+                const last = copy[copy.length - 1];
+                if (last && last.id === assistantId) last.text += data.delta;
+              }
+              return copy;
+            });
+          }
+          if (data.done) {
+            es.close();
+          }
+        } catch {}
+      };
+
+      es.onerror = () => {
+        es.close();
+        appendLocal("assistant", canned(text));
+      };
     } catch {
-      // Fallback to canned reply
       appendLocal("assistant", canned(text));
     }
   };
