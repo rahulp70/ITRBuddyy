@@ -34,31 +34,9 @@ function DashboardContent() {
   const [isSigningOut, setIsSigningOut] = useState(false);
   const navigate = useNavigate();
 
-  // Documents state persisted locally for demo
-  const [documents, setDocuments] = useState<Document[]>(() => {
-    try {
-      const raw = localStorage.getItem("itr_documents");
-      if (raw) {
-        const parsed = JSON.parse(raw) as (Omit<Document, "uploadDate"> & { uploadDate: string })[];
-        return parsed.map((d) => ({ ...d, uploadDate: new Date(d.uploadDate) }));
-      }
-    } catch {}
-    return [];
-  });
-  const [filesById, setFilesById] = useState<Record<string, File>>({});
-
-  useEffect(() => {
-    localStorage.setItem(
-      "itr_documents",
-      JSON.stringify(
-        documents.map((d) => ({ ...d, uploadDate: d.uploadDate.toISOString() }))
-      )
-    );
-  }, [documents]);
-
-  // Data preview dialog
+  // Data preview dialog (kept for potential future use)
   const [previewOpen, setPreviewOpen] = useState(false);
-  const [previewDoc, setPreviewDoc] = useState<Document | null>(null);
+  const [previewDoc, setPreviewDoc] = useState<any | null>(null);
 
   const handleSignOut = async () => {
     setIsSigningOut(true);
