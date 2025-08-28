@@ -554,21 +554,7 @@ export default function DocumentManager({ className }: { className?: string }) {
                               </div>
                             </DialogContent>
                           </Dialog>
-                          <Button size="sm" variant="outline" onClick={async () => {
-                            const r = await fetch(`/api/documents/${d.id}/json`);
-                            if (r.ok) {
-                              const json = await r.json();
-                              const blob = new Blob([JSON.stringify(json, null, 2)], { type: "application/json" });
-                              const url = URL.createObjectURL(blob);
-                              const a = document.createElement("a");
-                              a.href = url;
-                              a.download = `${d.docType.replace(/\s+/g, "-")}-${d.id}.json`;
-                              document.body.appendChild(a);
-                              a.click();
-                              a.remove();
-                              URL.revokeObjectURL(url);
-                            }
-                          }}>View JSON</Button>
+                          {/* JSON export hidden per UX request */}
                         </>
                       )}
                       <Button size="sm" variant="ghost" onClick={() => onAskAI(`How to verify data extracted from ${d.docType}?`)}>
