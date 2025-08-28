@@ -2,6 +2,10 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import { handleDemo } from "./routes/demo";
+import authRouter from "./routes/auth";
+import documentsRouter from "./routes/documents";
+import itrRouter from "./routes/itr";
+import chatRouter from "./routes/chat";
 
 export function createServer() {
   const app = express();
@@ -18,6 +22,12 @@ export function createServer() {
   });
 
   app.get("/api/demo", handleDemo);
+
+  // Application API
+  app.use("/api/auth", authRouter);
+  app.use("/api/documents", documentsRouter);
+  app.use("/api/itr", itrRouter);
+  app.use("/api/chat", chatRouter);
 
   return app;
 }
