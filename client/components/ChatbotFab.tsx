@@ -139,21 +139,21 @@ export default function ChatbotFab() {
 
   return (
     <div className="fixed bottom-6 right-6 z-50">
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogTrigger asChild>
+      <Sheet open={open} onOpenChange={setOpen}>
+        <SheetTrigger asChild>
           <Button size="lg" className="rounded-full shadow-lg" aria-label="Open chatbot">
             <MessageCircle className="w-5 h-5 mr-2" />
             Chat
           </Button>
-        </DialogTrigger>
-        <DialogContent className="sm:max-w-md p-0 overflow-hidden">
-          <DialogHeader className="p-4 border-b">
-            <DialogTitle className="flex items-center">
+        </SheetTrigger>
+        <SheetContent side="right" className="w-[92vw] sm:max-w-[520px] p-0">
+          <SheetHeader className="p-4 border-b">
+            <SheetTitle className="flex items-center">
               <Sparkles className="w-4 h-4 mr-2 text-brand-600" />
               ITR Buddy Assistant
-            </DialogTitle>
-          </DialogHeader>
-          <div className="h-96 flex flex-col">
+            </SheetTitle>
+          </SheetHeader>
+          <div className="h-full flex flex-col">
             <ScrollArea className="flex-1 p-4">
               <div className="space-y-3">
                 {messages.map((m) => (
@@ -165,8 +165,6 @@ export default function ChatbotFab() {
                 ))}
               </div>
             </ScrollArea>
-
-            {/* Quick replies */}
             <div className="px-3 pb-2 flex flex-wrap gap-2 border-t bg-white/60">
               {quickReplies.map((q) => (
                 <Button key={q} size="sm" variant="outline" onClick={() => handleQuick(q)}>
@@ -174,7 +172,6 @@ export default function ChatbotFab() {
                 </Button>
               ))}
             </div>
-
             <div className="p-3 border-t flex items-center space-x-2">
               <Input
                 placeholder="Ask about taxes, deductions, forms..."
@@ -189,8 +186,8 @@ export default function ChatbotFab() {
               </Button>
             </div>
           </div>
-        </DialogContent>
-      </Dialog>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
