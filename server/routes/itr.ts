@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import { requireAuth } from "./auth";
+// Auth optional for development; integrate JWT later
 
 const router = Router();
 
@@ -32,8 +32,8 @@ function validate(form: ItrForm) {
   return { issues, totals: { totalIncome, totalDeductions } };
 }
 
-router.get("/:id", requireAuth as any, (req: Request, res: Response) => {
-  const userId = (req as any).user?.sub as string;
+router.get("/:id", (req: Request, res: Response) => {
+  const userId = ((req as any).user?.sub as string) || "dev-user";
   const id = req.params.id;
   let form = forms.get(id);
   if (!form) {
@@ -52,7 +52,7 @@ router.get("/:id", requireAuth as any, (req: Request, res: Response) => {
   return res.json(form);
 });
 
-router.put("/:id", requireAuth as any, (req: Request, res: Response) => {
+router.put("/:id", (req: Request, res: Response) => {
   const id = req.params.id;
   const body = req.body as Partial<ItrForm>;
   const existing = forms.get(id);
@@ -62,7 +62,7 @@ router.put("/:id", requireAuth as any, (req: Request, res: Response) => {
   return res.json(updated);
 });
 
-router.post("/:id/validate", requireAuth as any, (req: Request, res: Response) => {
+router.post("/:id/validate", (req: Request, res: Response) => {
   const id = req.params.id;
   const form = forms.get(id);
   if (!form) return res.status(404).json({ error: "Form not found" });
@@ -70,7 +70,7 @@ router.post("/:id/validate", requireAuth as any, (req: Request, res: Response) =
   return res.json(result);
 });
 
-router.post("/:id/submit", requireAuth as any, (req: Request, res: Response) => {
+router.post("/:id/submit", (req: Request, res: Response) => {
   const id = req.params.id;
   const existing = forms.get(id);
   if (!existing) return res.status(404).json({ error: "Form not found" });
