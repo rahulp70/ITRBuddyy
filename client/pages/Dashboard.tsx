@@ -25,10 +25,9 @@ import {
 import Layout from "@/components/Layout";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { useAuth } from "@/contexts/AuthContext";
-import { Document, DocumentList } from "@/components/DocumentList";
-import DocumentUpload from "@/components/DocumentUpload";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useNavigate } from "react-router-dom";
+import DocumentManager from "@/components/DocumentManager";
 
 function DashboardContent() {
   const { user, profile, signOut, isLoading, isSupabaseConfigured } = useAuth();
@@ -82,7 +81,7 @@ function DashboardContent() {
     {
       icon: <Calculator className="w-6 h-6 text-success-600" />,
       title: "Estimated Refund",
-      value: "��25,000",
+      value: "₹25,000",
       description: "Based on current data",
     },
     {
