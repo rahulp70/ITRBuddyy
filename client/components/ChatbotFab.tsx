@@ -125,6 +125,18 @@ export default function ChatbotFab() {
     sendToBackend(text).finally(() => setSending(false));
   };
 
+  // Allow other components to open and ask the chatbot
+  useEffect(() => {
+    const onAsk = (e: any) => {
+      const text = e?.detail?.text as string;
+      if (!text) return;
+      setOpen(true);
+      handleQuick(text);
+    };
+    window.addEventListener("chatbot:ask", onAsk);
+    return () => window.removeEventListener("chatbot:ask", onAsk);
+  }, []);
+
   return (
     <div className="fixed bottom-6 right-6 z-50">
       <Dialog open={open} onOpenChange={setOpen}>
