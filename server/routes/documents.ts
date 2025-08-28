@@ -390,7 +390,7 @@ router.post("/:id/feedback", (req: Request, res: Response) => {
     else d.extracted.fields.push(upd);
   }
   const get = (n: string): number => Number(d.extracted!.fields.find((f) => f.name.toLowerCase() === n.toLowerCase())?.value ?? 0);
-  const income = get("Salary") || get("Reported Income") || d.extracted!.summary.income;
+  const income = get("Salary") || get("Reported Income") || get("Business Income") || d.extracted!.summary.income;
   const deductions = get("Deductions") || get("Eligible 80C") || d.extracted!.summary.deductions;
   const taxableIncome = get("Taxable Income") || Math.max(0, income - deductions);
   d.extracted.summary = { income, deductions, taxableIncome };
@@ -398,6 +398,13 @@ router.post("/:id/feedback", (req: Request, res: Response) => {
   d.extracted.messages = d.extracted.messages || [];
   d.extracted.messages = d.extracted.messages.filter((m) => !/unable to extract/i.test(m));
   docs.set(d.id, d);
+  return res.json({ ok: true });
+});
+
+router.delete("/:id", (req: Request, res: Response) => {
+  const d = docs.get(req.params.id);
+  if (!d) return res.status(404).json({ error: "Not found" });
+  docs.delete(req.params.id);
   return res.json({ ok: true });
 });
 
