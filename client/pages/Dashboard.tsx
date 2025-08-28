@@ -4,14 +4,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { 
-  BarChart3, 
-  FileText, 
-  Calculator, 
-  TrendingUp, 
-  Clock, 
-  User, 
-  Mail, 
+import {
+  FileText,
+  Calculator,
+  TrendingUp,
+  Clock,
+  User,
+  Mail,
   Calendar,
   Shield,
   LogOut,
@@ -20,21 +19,52 @@ import {
   Upload,
   CheckCircle,
   AlertCircle,
-  Loader2
+  Loader2,
+  Eye
 } from "lucide-react";
 import Layout from "@/components/Layout";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { useAuth } from "@/contexts/AuthContext";
+import { Document, DocumentList } from "@/components/DocumentList";
+import DocumentUpload from "@/components/DocumentUpload";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useNavigate } from "react-router-dom";
 
 function DashboardContent() {
   const { user, profile, signOut, isLoading, isSupabaseConfigured } = useAuth();
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const navigate = useNavigate();
+
+  // Documents state persisted locally for demo
+  const [documents, setDocuments] = useState<Document[]>(() => {
+    try {
+      const raw = localStorage.getItem("itr_documents");
+      if (raw) {
+        const parsed = JSON.parse(raw) as (Omit<Document, "uploadDate"> & { uploadDate: string })[];
+        return parsed.map((d) => ({ ...d, uploadDate: new Date(d.uploadDate) }));
+      }
+    } catch {}
+    return [];
+  });
+  const [filesById, setFilesById] = useState<Record<string, File>>({});
+
+  useEffect(() => {
+    localStorage.setItem(
+      "itr_documents",
+      JSON.stringify(
+        documents.map((d) => ({ ...d, uploadDate: d.uploadDate.toISOString() }))
+      )
+    );
+  }, [documents]);
+
+  // Data preview dialog
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewDoc, setPreviewDoc] = useState<Document | null>(null);
 
   const handleSignOut = async () => {
     setIsSigningOut(true);
     try {
       await signOut();
-      // Navigation will happen automatically via AuthContext
     } catch (error) {
       console.error('Sign out error:', error);
     } finally {
@@ -48,75 +78,119 @@ function DashboardContent() {
       title: "Tax Returns",
       value: "2024",
       description: "Current year",
-      status: "active"
     },
     {
       icon: <Calculator className="w-6 h-6 text-success-600" />,
       title: "Estimated Refund",
       value: "₹25,000",
       description: "Based on current data",
-      status: "estimated"
     },
     {
       icon: <TrendingUp className="w-6 h-6 text-blue-600" />,
       title: "Completion",
-      value: "15%",
-      description: "Getting started",
-      status: "in-progress"
+      value: `${Math.min(100, documents.filter(d=>d.status==='completed').length*20)}%`,
+      description: "Progress",
     },
     {
       icon: <Clock className="w-6 h-6 text-orange-600" />,
       title: "Time Saved",
       value: "2.5 hrs",
       description: "With AI assistance",
-      status: "saved"
     }
   ];
 
-  const recentActivity = [
-    {
-      action: "Account created",
-      timestamp: "Just now",
-      status: "success"
-    },
-    {
-      action: "Profile setup initiated",
-      timestamp: "1 minute ago",
-      status: "in-progress"
-    },
-    {
-      action: "Welcome email sent",
-      timestamp: "2 minutes ago",
-      status: "success"
-    }
-  ];
+  const onFilesUploaded = (files: File[]) => {
+    const newDocs: Document[] = files.map((file) => {
+      const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      return {
+        id,
+        name: file.name,
+        type: file.type,
+        size: file.size,
+        uploadDate: new Date(),
+        status: 'processing',
+        category: file.name.toLowerCase().includes('form16') ? 'form16' : file.type.startsWith('image/') ? 'investment' : 'other',
+      } as Document;
+    });
+    setDocuments((prev) => [...newDocs, ...prev]);
+    setFilesById((prev) => {
+      const copy = { ...prev };
+      newDocs.forEach((d, i) => (copy[d.id] = files[i]));
+      return copy;
+    });
 
-  const nextSteps = [
-    {
-      title: "Complete Profile Setup",
-      description: "Add your personal and financial information",
-      action: "Complete Setup",
-      priority: "high"
-    },
-    {
-      title: "Upload Tax Documents",
-      description: "Import W-2s, 1099s, and other tax forms",
-      action: "Upload Documents",
-      priority: "medium"
-    },
-    {
-      title: "Review Deductions",
-      description: "Let AI find potential tax savings",
-      action: "Find Deductions",
-      priority: "medium"
-    },
-    {
-      title: "File Your Return",
-      description: "Submit your completed tax return",
-      action: "File Return",
-      priority: "low"
-    }
-  ];
+    // Simulate processing -> completed
+    newDocs.forEach((doc, i) => {
+      setTimeout(() => {
+        setDocuments((prev) =>
+          prev.map((d) =>
+            d.id === doc.id
+              ? {
+                  ...d,
+                  status: Math.random() < 0.9 ? 'completed' : 'error',
+                  error: Math.random() < 0.1 ? 'OCR failed. Try again.' : undefined,
+                  extractedData:
+                    Math.random() < 0.9
+                      ? {
+                          income: 950000 + Math.floor(Math.random() * 50000),
+                          deductions: 150000,
+                          taxableIncome: 800000 + Math.floor(Math.random() * 50000),
+                        }
+                      : undefined,
+                }
+              : d
+          )
+        );
+      }, 1200 + i * 600);
+    });
+  };
+
+  const onViewData = (doc: Document) => {
+    setPreviewDoc(doc);
+    setPreviewOpen(true);
+  };
+
+  const onViewITRForm = (doc: Document) => {
+    navigate(`/itr/review/${doc.id}`);
+  };
+
+  const onDownload = (doc: Document) => {
+    const file = filesById[doc.id];
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = doc.name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const onDelete = (id: string) => {
+    setDocuments((prev) => prev.filter((d) => d.id !== id));
+    setFilesById((prev) => {
+      const { [id]: _, ...rest } = prev;
+      return rest;
+    });
+  };
+
+  const onReprocess = (id: string) => {
+    setDocuments((prev) => prev.map((d) => (d.id === id ? { ...d, status: 'processing', error: undefined } : d)));
+    setTimeout(() => {
+      setDocuments((prev) =>
+        prev.map((d) =>
+          d.id === id
+            ? {
+                ...d,
+                status: 'completed',
+                extractedData: d.extractedData || { income: 980000, deductions: 150000, taxableIncome: 830000 },
+              }
+            : d
+        )
+      );
+    }, 1200);
+  };
 
   if (isLoading) {
     return (
@@ -170,9 +244,9 @@ function DashboardContent() {
                 <Settings className="w-4 h-4 mr-2" />
                 Settings
               </Button>
-              <Button 
-                variant="outline" 
-                size="sm" 
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={handleSignOut}
                 disabled={isSigningOut}
               >
@@ -186,6 +260,9 @@ function DashboardContent() {
             </div>
           </div>
         </div>
+
+        {/* Prominent Upload Area */}
+        <DocumentUpload onFilesUploaded={onFilesUploaded} className="mb-8" />
 
         {/* Quick Stats */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -207,101 +284,16 @@ function DashboardContent() {
           ))}
         </div>
 
-        {/* Main Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Next Steps */}
-          <div className="lg:col-span-2">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <CheckCircle className="w-5 h-5 mr-2 text-brand-600" />
-                  Next Steps
-                </CardTitle>
-                <CardDescription>
-                  Complete these steps to maximize your tax refund
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {nextSteps.map((step, index) => (
-                    <div key={index} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors">
-                      <div className="flex-1">
-                        <div className="flex items-center mb-2">
-                          <h3 className="font-semibold text-gray-900">{step.title}</h3>
-                          <Badge 
-                            variant={step.priority === 'high' ? 'destructive' : step.priority === 'medium' ? 'default' : 'secondary'}
-                            className="ml-2 text-xs"
-                          >
-                            {step.priority} priority
-                          </Badge>
-                        </div>
-                        <p className="text-sm text-gray-600">{step.description}</p>
-                      </div>
-                      <Button size="sm" variant="outline">
-                        {step.action}
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Recent Activity */}
-          <div>
-            <Card className="mb-6">
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <Clock className="w-5 h-5 mr-2 text-brand-600" />
-                  Recent Activity
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {recentActivity.map((activity, index) => (
-                    <div key={index} className="flex items-center space-x-3">
-                      <div className={`w-2 h-2 rounded-full ${
-                        activity.status === 'success' ? 'bg-success-500' : 
-                        activity.status === 'in-progress' ? 'bg-blue-500' : 'bg-gray-400'
-                      }`} />
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-gray-900">{activity.action}</p>
-                        <p className="text-xs text-gray-500">{activity.timestamp}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Quick Actions */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Quick Actions</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <Button className="w-full justify-start" variant="outline">
-                    <Upload className="w-4 h-4 mr-2" />
-                    Upload Documents
-                  </Button>
-                  <Button className="w-full justify-start" variant="outline">
-                    <Calculator className="w-4 h-4 mr-2" />
-                    Tax Calculator
-                  </Button>
-                  <Button className="w-full justify-start" variant="outline">
-                    <Download className="w-4 h-4 mr-2" />
-                    Download Forms
-                  </Button>
-                  <Button className="w-full justify-start" variant="outline">
-                    <User className="w-4 h-4 mr-2" />
-                    Update Profile
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
+        {/* Document List/Table */}
+        <DocumentList
+          documents={documents}
+          onViewData={onViewData}
+          onViewITRForm={onViewITRForm}
+          onDownload={onDownload}
+          onDelete={onDelete}
+          onReprocess={onReprocess}
+          className="mb-8"
+        />
 
         {/* Authentication Mode Info */}
         {!isSupabaseConfigured && (
@@ -314,16 +306,25 @@ function DashboardContent() {
           </Alert>
         )}
 
-        {/* Welcome Alert for New Users */}
-        {user && !profile?.avatar_url && isSupabaseConfigured && (
-          <Alert className="mt-8 border-brand-200 bg-brand-50">
-            <CheckCircle className="h-4 w-4 text-brand-600" />
-            <AlertDescription className="text-brand-800">
-              <strong>Welcome to ITR Buddy!</strong> Your account has been successfully created and you're now logged in with secure JWT authentication.
-              Complete your profile setup to get personalized tax recommendations.
-            </AlertDescription>
-          </Alert>
-        )}
+        {/* Data Preview Dialog */}
+        <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="flex items-center"><Eye className="w-4 h-4 mr-2" /> Extracted Data</DialogTitle>
+            </DialogHeader>
+            <div className="text-sm">
+              {previewDoc?.extractedData ? (
+                <div className="space-y-1">
+                  <div>Income: ₹{previewDoc.extractedData.income.toLocaleString()}</div>
+                  <div>Deductions: ₹{previewDoc.extractedData.deductions.toLocaleString()}</div>
+                  <div>Taxable: ₹{previewDoc.extractedData.taxableIncome.toLocaleString()}</div>
+                </div>
+              ) : (
+                <div className="text-gray-500">No extracted data available.</div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
