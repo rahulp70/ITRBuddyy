@@ -87,10 +87,9 @@ export default function DocumentManager({ className }: { className?: string }) {
   });
 
   useEffect(() => {
-    localStorage.setItem(
-      "itr:docManager",
-      JSON.stringify(docs.map((d) => ({ ...d, uploadedAt: d.uploadedAt.toISOString() })))
-    );
+    const serialized = docs.map((d) => ({ ...d, uploadedAt: d.uploadedAt.toISOString() }));
+    localStorage.setItem("itr:docManager", JSON.stringify(serialized));
+    window.dispatchEvent(new CustomEvent("itr:docs-updated", { detail: { docs: serialized } }));
   }, [docs]);
 
   const onAskAI = (text: string) => {
