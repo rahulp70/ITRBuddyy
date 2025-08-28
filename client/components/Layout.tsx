@@ -12,6 +12,7 @@ import {
 import { LogOut, Settings, User, Shield } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { ConfigNotice, AuthModeIndicator } from "./ConfigNotice";
+import ChatbotFab from "@/components/ChatbotFab";
 
 interface LayoutProps {
   children: React.ReactNode;
