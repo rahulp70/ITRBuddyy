@@ -14,8 +14,6 @@ import ITRRecommendation from "@/components/ITRRecommendation";
 function DashboardContent() {
   const { user, profile, signOut, isLoading, isSupabaseConfigured } = useAuth();
   const [isSigningOut, setIsSigningOut] = useState(false);
-  const navigate = useNavigate();
-
 
   const handleSignOut = async () => {
     setIsSigningOut(true);
