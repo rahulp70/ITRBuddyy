@@ -82,7 +82,7 @@ function DashboardContent() {
     {
       icon: <Calculator className="w-6 h-6 text-success-600" />,
       title: "Estimated Refund",
-      value: "₹25,000",
+      value: "��25,000",
       description: "Based on current data",
     },
     {
@@ -268,8 +268,8 @@ function DashboardContent() {
           </div>
         </div>
 
-        {/* Prominent Upload Area */}
-        <DocumentUpload onFilesUploaded={onFilesUploaded} className="mb-8" />
+        {/* Document Manager */}
+        <DocumentManager className="mb-10" />
 
         {/* Quick Stats */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
