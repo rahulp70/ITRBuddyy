@@ -33,10 +33,22 @@ export default function ChatbotFab() {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const convRef = useRef<string | null>(sessionStorage.getItem(STORAGE_CONV));
+  const endRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     sessionStorage.setItem(STORAGE_MESSAGES, JSON.stringify(messages));
+    endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages]);
+
+  useEffect(() => {
+    if (open) {
+      setTimeout(() => {
+        endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+        inputRef.current?.focus();
+      }, 50);
+    }
+  }, [open]);
 
   const quickReplies = useMemo(() => [
     "How to upload documents?",
