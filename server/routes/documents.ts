@@ -360,7 +360,15 @@ router.get("/:id/data", (req, res) => {
   const extracted = d.extracted || null;
   const legacy = extracted ? extracted.summary : null;
   const issues = computeIssuesForUser(d.userId);
-  return res.json({ id: d.id, extractedData: legacy, extracted, issues });
+  const normalized = extracted ? normalizeByDocType(extracted) : null;
+  return res.json({ id: d.id, extractedData: legacy, extracted, normalized, issues });
+});
+
+router.get("/:id/json", (req, res) => {
+  const d = docs.get(req.params.id);
+  if (!d || !d.extracted) return res.status(404).json({ error: "Not found" });
+  const json = normalizeByDocType(d.extracted);
+  return res.json(json);
 });
 
 router.post("/:id/feedback", (req: Request, res: Response) => {
