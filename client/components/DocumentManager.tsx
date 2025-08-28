@@ -382,6 +382,18 @@ export default function DocumentManager({ className }: { className?: string }) {
     return Math.min(100, score);
   }, [docs]);
 
+  const nextAction = useMemo(() => {
+    if (!docs.some((d) => d.docType === "Form 16")) return "Upload your Form 16 to begin.";
+    if (!docs.some((d) => d.docType === "Form 26AS/AIS")) return "Upload your Form 26AS/AIS for TDS verification.";
+    const anyLow = docs.some((d) => d.status === "extracted" && d.quality && d.quality !== "good");
+    if (anyLow) return "Review low-quality extractions and correct fields.";
+    const validated = localStorage.getItem("itr:validated") === "true";
+    if (!validated) return "Complete validation to proceed.";
+    const submitted = localStorage.getItem("itr:submitted") === "true";
+    if (!submitted) return "Submit your return to finish.";
+    return "All steps complete. 🎉";
+  }, [docs, completion]);
+
   return (
     <div className={cn("space-y-8", className)}>
       <Card>
