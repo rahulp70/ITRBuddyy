@@ -362,6 +362,13 @@ export default function DocumentManager({ className }: { className?: string }) {
           <CardDescription>Select a type and upload PDF/JPG/PNG files. Max 10MB each.</CardDescription>
         </CardHeader>
         <CardContent>
+          <div className="mb-4">
+            <div className="flex items-center justify-between">
+              <div className="text-sm text-gray-600">Overall Progress</div>
+              <div className="text-xs text-gray-500">{completion}%</div>
+            </div>
+            <Progress value={completion} className="h-2" />
+          </div>
           <form onSubmit={handleUpload} className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
             <div className="space-y-2">
               <Label htmlFor="doc-type">Document Type</Label>
