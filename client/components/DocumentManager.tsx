@@ -590,9 +590,17 @@ export default function DocumentManager({ className }: { className?: string }) {
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between">
-              <div>
-                <div className="text-sm text-gray-600">Estimated Deductions</div>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <div className="text-sm text-gray-600">Estimated Deductions</div>
+                  <TooltipProvider><Tooltip><TooltipTrigger asChild><Info className="w-4 h-4 text-gray-500" /></TooltipTrigger><TooltipContent>Sum of deduction fields from uploaded documents (e.g., 80C, expenses). Estimates where exact values unavailable.</TooltipContent></Tooltip></TooltipProvider>
+                </div>
                 <div className="text-2xl font-bold">₹{deductionsSummary.totalDeductions.toLocaleString()}</div>
+                <div className="flex items-center gap-2">
+                  <div className="text-sm text-gray-600">Estimated Return</div>
+                  <TooltipProvider><Tooltip><TooltipTrigger asChild><Info className="w-4 h-4 text-gray-500" /></TooltipTrigger><TooltipContent>Approx. TDS minus estimated tax on aggregated taxable income at a flat 10% for demo.</TooltipContent></Tooltip></TooltipProvider>
+                </div>
+                <div className="text-lg font-semibold">₹{deductionsSummary.estimatedReturn.toLocaleString()}</div>
                 <div className="text-sm text-gray-600 mt-1">{deductionsSummary.suggestion}</div>
               </div>
               <Button variant="outline" onClick={() => onAskAI("How to maximize 80C/80D deductions based on my uploaded proofs?")}>Ask AI for tips</Button>
