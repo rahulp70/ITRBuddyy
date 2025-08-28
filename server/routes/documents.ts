@@ -24,6 +24,94 @@ interface ExtractedPayload {
   messages: string[];
 }
 
+type JsonRecord = Record<string, any>;
+
+function getFieldValue(fields: ExtractedField[], name: string): string | number | undefined {
+  const f = fields.find((x) => x.name.toLowerCase() === name.toLowerCase());
+  return f?.value as any;
+}
+
+function normalizeByDocType(ex: ExtractedPayload): JsonRecord | null {
+  const t = (ex.docType || "").toLowerCase();
+  const out: JsonRecord = { document_type: ex.docType };
+  if (t.includes("form 16")) {
+    const gross = getFieldValue(ex.fields, "Salary");
+    const tds = getFieldValue(ex.fields, "TDS");
+    const deds = getFieldValue(ex.fields, "Deductions");
+    const pan = getFieldValue(ex.fields, "PAN");
+    const employer = getFieldValue(ex.fields, "Employer");
+    if (pan) out["PAN"] = pan;
+    if (employer) out["employer_name"] = employer;
+    if (gross != null) out["gross_salary"] = gross;
+    if (deds != null) out["deductions"] = { section_80C: typeof deds === "number" ? deds : undefined };
+    if (tds != null) out["tds_deducted"] = tds;
+    const taxPayable = typeof ex.summary.taxableIncome === "number" ? Math.max(0, Math.round(ex.summary.taxableIncome * 0.1)) : undefined;
+    if (taxPayable) out["tax_payable"] = taxPayable;
+    return out;
+  }
+  if (t.includes("26as") || t.includes("ais")) {
+    const pan = getFieldValue(ex.fields, "PAN");
+    const tds = getFieldValue(ex.fields, "TDS");
+    if (pan) out["pan"] = pan;
+    if (tds != null) {
+      out["tax_deducted_at_source"] = tds;
+      out["total_tax_paid"] = tds;
+    }
+    return out;
+  }
+  if (t.includes("salary slip")) {
+    const gross = getFieldValue(ex.fields, "Salary");
+    const deds = getFieldValue(ex.fields, "Deductions");
+    if (gross != null && deds != null && typeof gross === "number" && typeof deds === "number") out["net_salary"] = Math.max(0, gross - deds);
+    return out;
+  }
+  if (t.includes("bank")) {
+    const ii = getFieldValue(ex.fields, "Interest Income");
+    if (ii != null) out["interest_income"] = ii;
+    return out;
+  }
+  if (t.includes("investment")) {
+    const amt = getFieldValue(ex.fields, "Eligible 80C");
+    if (amt != null) {
+      out["investment_type"] = "ELSS";
+      out["amount_invested"] = amt;
+      out["section"] = "80C";
+    }
+    return out;
+  }
+  if (t.includes("rent")) {
+    // Often only total is extractable
+    const total = getFieldValue(ex.fields, "Deductions");
+    if (total != null) out["total_rent_paid"] = total;
+    return out;
+  }
+  if (t.includes("loan")) {
+    const interest = getFieldValue(ex.fields, "Interest Paid") ?? getFieldValue(ex.fields, "Deductions");
+    if (interest != null) out["interest_paid"] = interest;
+    return out;
+  }
+  if (t.includes("medical")) {
+    const amt = getFieldValue(ex.fields, "Medical Expense") ?? getFieldValue(ex.fields, "Deductions");
+    if (amt != null) out["amount_paid"] = amt;
+    return out;
+  }
+  if (t.includes("capital gains")) {
+    const inc = ex.summary.income;
+    const taxable = ex.summary.taxableIncome;
+    if (inc) out["capital_gains"] = Math.max(0, inc - taxable);
+    return out;
+  }
+  if (t.includes("business")) {
+    const income = ex.summary.income;
+    const deductions = ex.summary.deductions;
+    if (income) out["total_income"] = income;
+    if (deductions) out["total_expenses"] = deductions;
+    if (income) out["net_profit"] = Math.max(0, income - (deductions || 0));
+    return out;
+  }
+  return out;
+}
+
 interface Doc {
   id: string;
   userId: string;
