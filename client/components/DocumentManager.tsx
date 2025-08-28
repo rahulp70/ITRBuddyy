@@ -457,6 +457,29 @@ export default function DocumentManager({ className }: { className?: string }) {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-2">
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button size="sm" variant="ghost" aria-label="Delete document">
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete this document?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This will remove the upload and its extracted data. This action cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={async () => {
+                              await fetch(`/api/documents/${d.id}`, { method: "DELETE" });
+                              setDocs((prev) => prev.filter((x) => x.id !== d.id));
+                            }}>Delete</AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+
                       <Button size="sm" variant="outline" onClick={() => onAskAI(`Explain how to use ${d.docType} in ITR and common mistakes.`)}>Ask AI</Button>
                       {d.status === "extracted" && (
                         <>
@@ -468,15 +491,22 @@ export default function DocumentManager({ className }: { className?: string }) {
                               <DialogHeader>
                                 <DialogTitle>Review and correct fields</DialogTitle>
                               </DialogHeader>
+                              <div className="space-y-2 text-sm text-gray-600">Provide missing details. Required fields are marked.</div>
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                {["PAN", "Employer", "Salary", "TDS", "Deductions", "Taxable Income"].map((k) => (
-                                  <div key={k} className="space-y-1">
-                                    <Label>{k}</Label>
+                                {manualFieldDefs(d.docType).map((def) => (
+                                  <div key={def.name} className="space-y-1">
+                                    <Label>
+                                      {def.label} {def.required && <span aria-hidden className="text-red-600">*</span>}
+                                    </Label>
                                     <Input
-                                      value={String(editValues[k] ?? "")}
-                                      onChange={(e) => setEditValues((prev) => ({ ...prev, [k]: k === "PAN" || k === "Employer" ? e.target.value : Number(e.target.value.replace(/[^\d]/g, "")) }))}
-                                      placeholder={k === "PAN" || k === "Employer" ? `Enter ${k}` : "0"}
+                                      aria-required={def.required}
+                                      aria-invalid={!!editErrors[def.name]}
+                                      value={String(editValues[def.name] ?? "")}
+                                      onChange={(e) => setEditValues((prev) => ({ ...prev, [def.name]: def.type === "text" ? e.target.value : Number(e.target.value.replace(/[^\d]/g, "")) }))}
+                                      placeholder={def.type === "text" ? `Enter ${def.label}` : "0"}
+                                      className={editErrors[def.name] ? "border-red-500" : undefined}
                                     />
+                                    {editErrors[def.name] && <div className="text-xs text-red-600">{editErrors[def.name]}</div>}
                                   </div>
                                 ))}
                               </div>
