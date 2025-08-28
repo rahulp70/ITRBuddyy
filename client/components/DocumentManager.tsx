@@ -392,7 +392,17 @@ export default function DocumentManager({ className }: { className?: string }) {
         <CardContent>
           <div className="mb-4">
             <div className="flex items-center justify-between">
-              <div className="text-sm text-gray-600">Overall Progress</div>
+              <div className="flex items-center gap-2 text-sm text-gray-600">
+                Overall Progress
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="w-4 h-4 text-gray-500" />
+                    </TooltipTrigger>
+                    <TooltipContent>{nextAction}</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
               <div className="text-xs text-gray-500">{completion}%</div>
             </div>
             <Progress value={completion} className="h-2" />
