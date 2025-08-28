@@ -10,6 +10,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
 import { Download, FileText, Upload, CheckCircle, AlertCircle, MessageCircleQuestion, ListChecks } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { useEffect, useMemo, useState } from "react";
 
 export type DocType =
   | "Form 16"
@@ -38,6 +40,8 @@ const allDocTypes: DocType[] = [
 
 type Status = "pending" | "processing" | "extracted" | "error";
 
+type ExtractedField = { name: string; value: string | number; confidence: number; source: string };
+
 interface DocRecord {
   id: string;
   fileName: string;
@@ -47,6 +51,9 @@ interface DocRecord {
   docType: DocType;
   status: Status;
   keySummary?: Record<string, number | string>;
+  fields?: ExtractedField[];
+  quality?: "good" | "low" | "unreadable";
+  messages?: string[];
   error?: string;
 }
 
@@ -104,7 +111,6 @@ export default function DocumentManager({ className }: { className?: string }) {
     };
     setDocs((prev) => [pending, ...prev]);
 
-    // Send to backend
     const formData = new FormData();
     formData.append("file", file);
     formData.append("docType", selectedType);
@@ -114,13 +120,8 @@ export default function DocumentManager({ className }: { className?: string }) {
       const data = await res.json();
       const newId = data.id as string;
 
-      setDocs((prev) =>
-        prev.map((d) =>
-          d.id === tempId ? { ...d, id: newId, status: "processing" } : d
-        )
-      );
+      setDocs((prev) => prev.map((d) => (d.id === tempId ? { ...d, id: newId, status: "processing" } : d)));
 
-      // poll status -> then fetch data
       const poll = async () => {
         try {
           const s = await fetch(`/api/documents/${newId}/status`);
@@ -132,7 +133,10 @@ export default function DocumentManager({ className }: { className?: string }) {
             const dres = await fetch(`/api/documents/${newId}/data`);
             const djson = await dres.json();
             const summary = buildKeySummary(selectedType as DocType, djson.extractedData || {});
-            setDocs((prev) => prev.map((d) => (d.id === newId ? { ...d, keySummary: summary } : d)));
+            const fields: ExtractedField[] = djson.extracted?.fields || [];
+            const quality = djson.extracted?.quality as DocRecord["quality"];
+            const messages: string[] = djson.extracted?.messages || [];
+            setDocs((prev) => prev.map((d) => (d.id === newId ? { ...d, keySummary: summary, fields, quality, messages } : d)));
           }
         } catch (err) {
           setDocs((prev) => prev.map((d) => (d.id === newId ? { ...d, status: "error", error: "Processing failed" } : d)));
@@ -149,7 +153,6 @@ export default function DocumentManager({ className }: { className?: string }) {
   }
 
   function buildKeySummary(type: DocType, extracted: any): Record<string, number | string> {
-    // Map available backend keys (income, deductions, taxableIncome) to context-specific labels
     const inc = Number(extracted?.income ?? 0);
     const ded = Number(extracted?.deductions ?? 0);
     const taxable = Number(extracted?.taxableIncome ?? 0);
@@ -178,7 +181,6 @@ export default function DocumentManager({ className }: { className?: string }) {
     }
   }
 
-  // Cross-document validations
   const issues = useMemo(() => {
     const out: { message: string; action?: () => void }[] = [];
     const form16 = docs.find((d) => d.docType === "Form 16" && d.keySummary && d.status === "extracted");
@@ -198,7 +200,6 @@ export default function DocumentManager({ className }: { className?: string }) {
     }
     const f26 = docs.find((d) => d.docType === "Form 26AS/AIS" && d.status === "extracted");
     if (form16 && f26) {
-      // Compare taxable income as proxy; real integration will use precise TDS fields
       const t1 = Number((form16.keySummary as any)?.["Taxable Income"] ?? 0);
       const t2 = Number((f26.keySummary as any)?.["Taxable Income"] ?? 0);
       if (t1 && t2) {
@@ -214,7 +215,38 @@ export default function DocumentManager({ className }: { className?: string }) {
     return out;
   }, [docs]);
 
-  // Deductions summary
+  const [editDocId, setEditDocId] = useState<string | null>(null);
+  const editDoc = docs.find((d) => d.id === editDocId) || null;
+  const [editValues, setEditValues] = useState<{ [k: string]: string | number }>({});
+  useEffect(() => {
+    if (!editDoc) return;
+    const initial: { [k: string]: string | number } = {};
+    ["PAN", "Employer", "Salary", "TDS", "Deductions", "Taxable Income"].forEach((k) => {
+      const fv = editDoc.fields?.find((f) => f.name === k)?.value;
+      if (fv != null) initial[k] = fv as any;
+    });
+    setEditValues(initial);
+  }, [editDocId]);
+
+  async function saveManualCorrections() {
+    if (!editDoc) return;
+    const payload = {
+      fields: Object.entries(editValues).map(([name, value]) => ({ name, value })),
+    };
+    try {
+      await fetch(`/api/documents/${editDoc.id}/feedback`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      const dres = await fetch(`/api/documents/${editDoc.id}/data`);
+      const djson = await dres.json();
+      const summary = buildKeySummary(editDoc.docType, djson.extractedData || {});
+      const fields: ExtractedField[] = djson.extracted?.fields || [];
+      const quality = djson.extracted?.quality as DocRecord["quality"];
+      const messages: string[] = djson.extracted?.messages || [];
+      setDocs((prev) => prev.map((d) => (d.id === editDoc.id ? { ...d, keySummary: summary, fields, quality, messages } : d)));
+    } finally {
+      setEditDocId(null);
+    }
+  }
+
   const deductionsSummary = useMemo(() => {
     const totalDeductions = docs
       .filter((d) => d.status === "extracted")
@@ -222,9 +254,7 @@ export default function DocumentManager({ className }: { className?: string }) {
     const hasInvestmentProof = docs.some((d) => d.docType === "Investment Proof");
     const max80C = 150000;
     const suggestion = totalDeductions < max80C ? `You can claim up to ₹${(max80C - totalDeductions).toLocaleString()} more under 80C.` : "80C limit appears fully utilized.";
-    const missing: DocType[] = ["Investment Proof", "Medical Bill", "Rent Receipt", "Loan Statement"].filter(
-      (t) => !docs.some((d) => d.docType === t)
-    ) as DocType[];
+    const missing: DocType[] = ["Investment Proof", "Medical Bill", "Rent Receipt", "Loan Statement"].filter((t) => !docs.some((d) => d.docType === t)) as DocType[];
     return { totalDeductions, suggestion, missing, hasInvestmentProof };
   }, [docs]);
 
@@ -234,7 +264,6 @@ export default function DocumentManager({ className }: { className?: string }) {
 
   return (
     <div className={cn("space-y-8", className)}>
-      {/* Upload with Type */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center"><Upload className="w-5 h-5 mr-2" /> Upload Documents</CardTitle>
@@ -266,7 +295,6 @@ export default function DocumentManager({ className }: { className?: string }) {
         </CardContent>
       </Card>
 
-      {/* Issues Panel */}
       {issues.length > 0 && (
         <Alert className="border-amber-200 bg-amber-50">
           <AlertDescription>
@@ -285,7 +313,6 @@ export default function DocumentManager({ className }: { className?: string }) {
         </Alert>
       )}
 
-      {/* Documents Table */}
       <Card>
         <CardHeader>
           <CardTitle>Documents</CardTitle>
@@ -299,7 +326,7 @@ export default function DocumentManager({ className }: { className?: string }) {
                 <TableHead>Type</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Uploaded</TableHead>
-                <TableHead>Summary</TableHead>
+                <TableHead>Details</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -311,11 +338,34 @@ export default function DocumentManager({ className }: { className?: string }) {
                   <TableCell>{statusBadge(d.status)}</TableCell>
                   <TableCell>{d.uploadedAt.toLocaleString()}</TableCell>
                   <TableCell>
-                    {d.status === "extracted" && d.keySummary ? (
-                      <div className="text-xs space-y-1">
-                        {Object.entries(d.keySummary).map(([k, v]) => (
-                          <div key={k} className="flex items-center gap-2"><CheckCircle className="w-3 h-3 text-success-600" /> {k}: {typeof v === "number" ? `₹${(v as number).toLocaleString()}` : String(v)}</div>
-                        ))}
+                    {d.status === "extracted" ? (
+                      <div className="space-y-2">
+                        {d.quality && d.quality !== "good" && (
+                          <Alert>
+                            <AlertDescription>
+                              {(d.messages && d.messages[0]) || "Extraction quality is low. Please review and correct fields or upload a clearer copy."}
+                            </AlertDescription>
+                          </Alert>
+                        )}
+                        {d.fields && d.fields.length > 0 ? (
+                          <div className="text-xs grid grid-cols-1 md:grid-cols-2 gap-1">
+                            {d.fields.map((f) => (
+                              <div key={f.name} className="flex items-center gap-2">
+                                <CheckCircle className="w-3 h-3 text-success-600" />
+                                <span>{f.name}: {typeof f.value === "number" ? `₹${(f.value as number).toLocaleString()}` : String(f.value)}</span>
+                                <span className="text-[10px] text-gray-500">({Math.round(f.confidence * 100)}%)</span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : d.keySummary ? (
+                          <div className="text-xs space-y-1">
+                            {Object.entries(d.keySummary).map(([k, v]) => (
+                              <div key={k} className="flex items-center gap-2"><CheckCircle className="w-3 h-3 text-success-600" /> {k}: {typeof v === "number" ? `₹${(v as number).toLocaleString()}` : String(v)}</div>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-gray-400 text-sm">—</span>
+                        )}
                       </div>
                     ) : d.status === "error" ? (
                       <span className="text-red-600 text-sm flex items-center"><AlertCircle className="w-3 h-3 mr-1" /> {d.error}</span>
@@ -326,10 +376,35 @@ export default function DocumentManager({ className }: { className?: string }) {
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-2">
                       <Button size="sm" variant="outline" onClick={() => onAskAI(`Explain how to use ${d.docType} in ITR and common mistakes.`)}>Ask AI</Button>
-                      <Button size="sm" variant="ghost" onClick={() => {
-                        // simple download for demo when available via memory
-                        onAskAI(`How to verify data extracted from ${d.docType}?`);
-                      }}>
+                      {d.status === "extracted" && (
+                        <Dialog open={editDocId === d.id} onOpenChange={(open) => setEditDocId(open ? d.id : null)}>
+                          <DialogTrigger asChild>
+                            <Button size="sm" variant="secondary">Enter details manually</Button>
+                          </DialogTrigger>
+                          <DialogContent>
+                            <DialogHeader>
+                              <DialogTitle>Review and correct fields</DialogTitle>
+                            </DialogHeader>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                              {["PAN", "Employer", "Salary", "TDS", "Deductions", "Taxable Income"].map((k) => (
+                                <div key={k} className="space-y-1">
+                                  <Label>{k}</Label>
+                                  <Input
+                                    value={String(editValues[k] ?? "")}
+                                    onChange={(e) => setEditValues((prev) => ({ ...prev, [k]: k === "PAN" || k === "Employer" ? e.target.value : Number(e.target.value.replace(/[^\d]/g, "")) }))}
+                                    placeholder={k === "PAN" || k === "Employer" ? `Enter ${k}` : "0"}
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                            <div className="flex justify-end gap-2 mt-2">
+                              <Button variant="outline" onClick={() => setEditDocId(null)}>Cancel</Button>
+                              <Button onClick={saveManualCorrections}>Save</Button>
+                            </div>
+                          </DialogContent>
+                        </Dialog>
+                      )}
+                      <Button size="sm" variant="ghost" onClick={() => onAskAI(`How to verify data extracted from ${d.docType}?`)}>
                         <Download className="w-4 h-4" />
                       </Button>
                     </div>
@@ -341,7 +416,6 @@ export default function DocumentManager({ className }: { className?: string }) {
         </CardContent>
       </Card>
 
-      {/* Deductions Summary & Checklist */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card className="lg:col-span-2">
           <CardHeader>
