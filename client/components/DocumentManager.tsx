@@ -137,6 +137,13 @@ export default function DocumentManager({ className }: { className?: string }) {
             const quality = djson.extracted?.quality as DocRecord["quality"];
             const messages: string[] = djson.extracted?.messages || [];
             setDocs((prev) => prev.map((d) => (d.id === newId ? { ...d, keySummary: summary, fields, quality, messages } : d)));
+            const requiredMissing = (type: DocType) => {
+              const need = manualFieldDefs(type).filter((f) => f.required).map((f) => f.name);
+              const have = new Set((fields || []).map((f) => f.name));
+              return need.some((n) => !have.has(n));
+            };
+            if (quality && quality !== "good") setEditDocId(newId);
+            else if (requiredMissing(selectedType as DocType)) setEditDocId(newId);
           }
         } catch (err) {
           setDocs((prev) => prev.map((d) => (d.id === newId ? { ...d, status: "error", error: "Processing failed" } : d)));
