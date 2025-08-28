@@ -28,6 +28,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useNavigate } from "react-router-dom";
 import DocumentManager from "@/components/DocumentManager";
+import StatsCards from "@/components/StatsCards";
+import ITRRecommendation from "@/components/ITRRecommendation";
 
 function DashboardContent() {
   const { user, profile, signOut, isLoading, isSupabaseConfigured } = useAuth();
@@ -45,34 +47,6 @@ function DashboardContent() {
       setIsSigningOut(false);
     }
   };
-
-  const quickStats = [
-    {
-      icon: <FileText className="w-6 h-6 text-brand-600" />,
-      title: "Tax Returns",
-      value: "2024",
-      description: "Current year",
-    },
-    {
-      icon: <Calculator className="w-6 h-6 text-success-600" />,
-      title: "Estimated Refund",
-      value: "₹25,000",
-      description: "Based on current data",
-    },
-    {
-      icon: <TrendingUp className="w-6 h-6 text-blue-600" />,
-      title: "Completion",
-      value: `—`,
-      description: "Progress",
-    },
-    {
-      icon: <Clock className="w-6 h-6 text-orange-600" />,
-      title: "Time Saved",
-      value: "2.5 hrs",
-      description: "With AI assistance",
-    }
-  ];
-
 
 
   if (isLoading) {
@@ -147,27 +121,11 @@ function DashboardContent() {
         {/* Document Manager */}
         <DocumentManager className="mb-10" />
 
-        {/* Quick Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          {quickStats.map((stat, index) => (
-            <Card key={index}>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">{stat.title}</p>
-                    <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
-                    <p className="text-xs text-gray-500">{stat.description}</p>
-                  </div>
-                  <div className="p-2 bg-gray-50 rounded-lg">
-                    {stat.icon}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        {/* Dynamic Stats */}
+        <StatsCards />
 
-        {/* Document list is now handled inside DocumentManager */}
+        {/* ITR Recommendation */}
+        <ITRRecommendation />
 
         {/* Authentication Mode Info */}
         {!isSupabaseConfigured && (
