@@ -343,15 +343,35 @@ export default function DocumentManager({ className }: { className?: string }) {
     const totalDeductions = docs
       .filter((d) => d.status === "extracted")
       .reduce((sum, d) => sum + Number((d.keySummary?.Deductions as number) || 0) + Number((d.keySummary as any)?.["Eligible 80C (est.)"] || 0), 0);
-    const hasInvestmentProof = docs.some((d) => d.docType === "Investment Proof");
+    const totalTDS = docs
+      .filter((d) => d.status === "extracted")
+      .reduce((sum, d) => sum + (typeof d.fields?.find((f) => f.name === "TDS")?.value === 'number' ? (d.fields?.find((f) => f.name === "TDS")?.value as number) : 0), 0);
+    const taxableIncome = docs
+      .filter((d) => d.status === "extracted")
+      .reduce((sum, d) => sum + Number((d.keySummary as any)?.["Taxable Income"] || 0), 0);
+    const estimatedTax = Math.max(0, Math.round(Math.max(0, taxableIncome) * 0.1));
+    const estimatedReturn = Math.max(0, totalTDS - estimatedTax);
     const max80C = 150000;
     const suggestion = totalDeductions < max80C ? `You can claim up to ₹${(max80C - totalDeductions).toLocaleString()} more under 80C.` : "80C limit appears fully utilized.";
     const missing: DocType[] = ["Investment Proof", "Medical Bill", "Rent Receipt", "Loan Statement"].filter((t) => !docs.some((d) => d.docType === t)) as DocType[];
-    return { totalDeductions, suggestion, missing, hasInvestmentProof };
+    return { totalDeductions, totalTDS, taxableIncome, estimatedTax, estimatedReturn, suggestion, missing };
   }, [docs]);
 
   const checklist = useMemo(() => {
     return allDocTypes.map((t) => ({ type: t, uploaded: docs.some((d) => d.docType === t) }));
+  }, [docs]);
+
+  const completion = useMemo(() => {
+    let score = 0;
+    const required: DocType[] = ["Form 16", "Form 26AS/AIS"];
+    for (const r of required) if (docs.some((d) => d.docType === r && d.status === "extracted")) score += 25;
+    const allGood = docs.filter((d) => d.status === "extracted").every((d) => !d.quality || d.quality === "good");
+    if (allGood && docs.some((d) => d.status === "extracted")) score += 25;
+    const validated = localStorage.getItem("itr:validated") === "true";
+    const submitted = localStorage.getItem("itr:submitted") === "true";
+    if (validated) score += 15;
+    if (submitted) score += 10;
+    return Math.min(100, score);
   }, [docs]);
 
   return (
