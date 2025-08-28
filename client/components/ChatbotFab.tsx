@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { MessageCircle, Send, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -11,22 +11,83 @@ interface ChatMessage {
   text: string;
 }
 
+const STORAGE_MESSAGES = "chatbot:messages";
+const STORAGE_CONV = "chatbot:conversationId";
+
 export default function ChatbotFab() {
   const [open, setOpen] = useState(false);
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: "welcome",
-      role: "assistant",
-      text: "Hi! I can help explain tax fields, deductions, and next steps. How can I assist you today?",
-    },
-  ]);
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+    const raw = sessionStorage.getItem(STORAGE_MESSAGES);
+    if (raw) {
+      try { return JSON.parse(raw) as ChatMessage[]; } catch {}
+    }
+    return [
+      {
+        id: "welcome",
+        role: "assistant",
+        text: "Hi! I can help explain tax fields, deductions, and next steps. How can I assist you today?",
+      },
+    ];
+  });
   const [input, setInput] = useState("");
+  const [sending, setSending] = useState(false);
+  const convRef = useRef<string | null>(sessionStorage.getItem(STORAGE_CONV));
+
+  useEffect(() => {
+    sessionStorage.setItem(STORAGE_MESSAGES, JSON.stringify(messages));
+  }, [messages]);
+
+  const quickReplies = useMemo(() => [
+    "How to upload documents?",
+    "Explain section 80C",
+    "Where can I see processing status?",
+  ], []);
+
+  const appendLocal = (role: ChatMessage["role"], text: string) => {
+    setMessages((prev) => [...prev, { id: `${Date.now()}-${Math.random()}`, role, text }]);
+  };
+
+  const canned = (q: string) => {
+    const l = q.toLowerCase();
+    if (l.includes("upload")) return "Click 'Choose Files' or drag-and-drop PDF/JPG/PNG in the Dashboard upload area.";
+    if (l.includes("80c")) return "80C lets you claim deductions for investments like PPF/ELSS up to the allowed limit.";
+    if (l.includes("status")) return "Open Dashboard → Uploaded Documents to view processing status.";
+    return "I can help with uploads, deductions, and ITR review. Ask me anything!";
+  };
+
+  const sendToBackend = async (text: string) => {
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ conversationId: convRef.current, message: text }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      convRef.current = data.conversationId;
+      sessionStorage.setItem(STORAGE_CONV, convRef.current);
+      const msgs: ChatMessage[] = data.messages;
+      setMessages(msgs);
+    } catch {
+      // Fallback to canned reply
+      appendLocal("assistant", canned(text));
+    }
+  };
 
   const handleSend = () => {
-    if (!input.trim()) return;
-    const newMsg: ChatMessage = { id: `${Date.now()}`, role: "user", text: input.trim() };
-    setMessages((prev) => [...prev, newMsg, { id: `${Date.now()}-a`, role: "assistant", text: "Thanks! Isimulate AI here. A real assistant can be connected later." }]);
+    if (!input.trim() || sending) return;
+    const text = input.trim();
     setInput("");
+    appendLocal("user", text);
+    setSending(true);
+    sendToBackend(text).finally(() => setSending(false));
+  };
+
+  const handleQuick = (text: string) => {
+    setInput("");
+    appendLocal("user", text);
+    setSending(true);
+    sendToBackend(text).finally(() => setSending(false));
   };
 
   return (
@@ -45,7 +106,7 @@ export default function ChatbotFab() {
               ITR Buddy Assistant
             </DialogTitle>
           </DialogHeader>
-          <div className="h-80 flex flex-col">
+          <div className="h-96 flex flex-col">
             <ScrollArea className="flex-1 p-4">
               <div className="space-y-3">
                 {messages.map((m) => (
@@ -57,6 +118,16 @@ export default function ChatbotFab() {
                 ))}
               </div>
             </ScrollArea>
+
+            {/* Quick replies */}
+            <div className="px-3 pb-2 flex flex-wrap gap-2 border-t bg-white/60">
+              {quickReplies.map((q) => (
+                <Button key={q} size="sm" variant="outline" onClick={() => handleQuick(q)}>
+                  {q}
+                </Button>
+              ))}
+            </div>
+
             <div className="p-3 border-t flex items-center space-x-2">
               <Input
                 placeholder="Ask about taxes, deductions, forms..."
@@ -66,7 +137,7 @@ export default function ChatbotFab() {
                   if (e.key === "Enter") handleSend();
                 }}
               />
-              <Button onClick={handleSend} aria-label="Send message">
+              <Button onClick={handleSend} aria-label="Send message" disabled={sending}>
                 <Send className="w-4 h-4" />
               </Button>
             </div>
