@@ -320,6 +320,12 @@ router.post("/upload", upload.single("file"), async (req: Request, res: Response
     status: "processing",
     docTypeLabel: selectedDocType,
   };
+  // Enforce single active document per type per user by removing existing of same type
+  for (const [key, existing] of Array.from(docs.entries())) {
+    if (existing.userId === userId && existing.docTypeLabel && selectedDocType && existing.docTypeLabel === selectedDocType) {
+      docs.delete(key);
+    }
+  }
   docs.set(id, doc);
 
   (async () => {
