@@ -180,6 +180,7 @@ export default function ChatbotFab() {
                     )}
                   </div>
                 ))}
+                <div ref={endRef} />
               </div>
             </ScrollArea>
             <div className="px-3 pb-2 flex flex-wrap gap-2 border-t bg-white/60">
