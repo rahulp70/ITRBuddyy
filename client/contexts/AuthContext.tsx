@@ -1,30 +1,22 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { User, Session, AuthError } from '@supabase/supabase-js';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { Session } from '@supabase/supabase-js';
 import { authHelpers, subscriptions, isSupabaseConfigured, type UserProfile, type AuthUser } from '@/lib/supabase';
 
 interface AuthContextType {
-  // Authentication state
   user: AuthUser | null;
   session: Session | null;
   profile: UserProfile | null;
   loading: boolean;
-  
-  // Configuration status
   isSupabaseConfigured: boolean;
-  
-  // Authentication actions
-  signUp: (email: string, password: string, fullName: string) => Promise<{ error: AuthError | null }>;
-  signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
-  signInWithOAuth: (provider: 'google' | 'github' | 'apple' | 'facebook') => Promise<{ error: AuthError | null }>;
-  signOut: () => Promise<{ error: AuthError | null }>;
-  resetPassword: (email: string) => Promise<{ error: AuthError | null }>;
-  updatePassword: (password: string) => Promise<{ error: AuthError | null }>;
-  
-  // Profile actions
+  signUp: (email: string, password: string, fullName: string) => Promise<{ error: { message: string } | null }>;
+  signIn: (email: string, password: string) => Promise<{ error: { message: string } | null }>;
+  signInWithOAuth: (provider: 'google' | 'github' | 'apple' | 'facebook') => Promise<{ error: { message: string } | null }>;
+  signOut: () => Promise<{ error: { message: string } | null }>;
+  resetPassword: (email: string) => Promise<{ error: { message: string } | null }>;
+  updatePassword: (password: string) => Promise<{ error: { message: string } | null }>;
   updateProfile: (updates: Partial<UserProfile>) => Promise<{ error: any }>;
   refreshProfile: () => Promise<void>;
-  
-  // Utility functions
   isAuthenticated: boolean;
   isLoading: boolean;
 }
@@ -200,7 +192,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [user?.id, cacheProfile]);
 
   // Authentication functions with improved error handling
-  const signUp = async (email: string, password: string, fullName: string) => {
+  const signUp = async (email: string, password: string, fullName: string): Promise<{ error: { message: string } | null }> => {
     setLoading(true);
     try {
       console.log('🔄 Attempting signup:', { email, fullName, mode: isSupabaseConfigured ? 'Supabase' : 'Mock' });
@@ -230,7 +222,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
-  const signIn = async (email: string, password: string) => {
+  const signIn = async (email: string, password: string): Promise<{ error: { message: string } | null }> => {
     setLoading(true);
     try {
       console.log('🔄 Attempting signin:', { email, mode: isSupabaseConfigured ? 'Supabase' : 'Mock' });
@@ -255,7 +247,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
-  const signInWithOAuth = async (provider: 'google' | 'github' | 'apple' | 'facebook') => {
+  const signInWithOAuth = async (provider: 'google' | 'github' | 'apple' | 'facebook'): Promise<{ error: { message: string } | null }> => {
     setLoading(true);
     try {
       console.log('🔄 Attempting OAuth signin:', { provider, mode: isSupabaseConfigured ? 'Supabase' : 'Mock' });
@@ -269,6 +261,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
         return { error: { message: errorMessage } };
       } else {
         console.log('✅ OAuth successful:', provider);
+        if (!isSupabaseConfigured) {
+          const { user: currentUser } = await authHelpers.getCurrentUser();
+          if (currentUser) {
+            setUser(currentUser as AuthUser);
+            const mockSession: any = { access_token: 'mock-jwt', user: currentUser, expires_at: Date.now() + 3600000 };
+            setSession(mockSession);
+            cacheSession(mockSession);
+            await loadUserProfile((currentUser as any).id);
+          }
+        }
       }
 
       return { error: null };
@@ -280,7 +282,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
-  const signOut = async () => {
+  const signOut = async (): Promise<{ error: { message: string } | null }> => {
     setLoading(true);
     try {
       console.log('🔄 Attempting signout');
@@ -294,6 +296,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
         return { error: { message: errorMessage } };
       } else {
         console.log('✅ Signout successful');
+        setUser(null);
+        setSession(null);
+        setProfile(null);
+        cacheSession(null);
+        cacheProfile(null);
+        const keysToClear = [
+          'itr:docManager',
+          'chatbot:messages',
+          'chatbot:conversationId',
+          'itr:validated',
+          'itr:submitted',
+        ];
+        for (const k of keysToClear) localStorage.removeItem(k);
       }
 
       return { error: null };
@@ -305,7 +320,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
-  const resetPassword = async (email: string) => {
+  const resetPassword = async (email: string): Promise<{ error: { message: string } | null }> => {
     try {
       console.log('🔄 Attempting password reset:', { email, mode: isSupabaseConfigured ? 'Supabase' : 'Mock' });
 
@@ -327,7 +342,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
-  const updatePassword = async (password: string) => {
+  const updatePassword = async (password: string): Promise<{ error: { message: string } | null }> => {
     try {
       console.log('🔄 Attempting password update');
 
