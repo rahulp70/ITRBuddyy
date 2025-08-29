@@ -1,7 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
 
-import { createClient } from '@supabase/supabase-js';
-
 // Environment variables for Supabase configuration
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -236,7 +234,7 @@ const mockAuthHelpers = {
   },
 
   createUserProfile: async (userId: string, email: string, fullName: string) => {
-    console.log('🔄 Mock profile creation:', { userId, email, fullName });
+    console.log('��� Mock profile creation:', { userId, email, fullName });
     
     const profile = {
       id: userId,
