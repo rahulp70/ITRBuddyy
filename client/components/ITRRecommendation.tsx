@@ -62,6 +62,15 @@ export default function ITRRecommendation() {
     return { form, reason };
   }, [docs]);
 
+  const formLink = (() => {
+    const base = "https://incometaxindia.gov.in?utm_source=chatgpt.com";
+    if (/ITR-1/.test(rec.form)) return base;
+    if (/ITR-2/.test(rec.form)) return base;
+    if (/ITR-3/.test(rec.form)) return base;
+    if (/ITR-4/.test(rec.form)) return base;
+    return base;
+  })();
+
   return (
     <Card>
       <CardHeader>
@@ -72,7 +81,7 @@ export default function ITRRecommendation() {
         <div className="text-gray-900 font-semibold">Recommended: {rec.form}</div>
         <div className="text-sm text-gray-600 mt-1 flex items-start gap-2"><Info className="w-4 h-4 mt-0.5 text-gray-500" /> {rec.reason}</div>
         <div className="text-sm text-blue-600 mt-3">
-          Learn more on the official portal: <a href="https://incometaxindia.gov.in" target="_blank" rel="noreferrer" className="underline">incometaxindia.gov.in</a>
+          Official guidance for {rec.form}: <a href={formLink} target="_blank" rel="noreferrer" className="underline">incometaxindia.gov.in</a>
         </div>
       </CardContent>
     </Card>
