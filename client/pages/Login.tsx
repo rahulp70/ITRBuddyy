@@ -20,6 +20,7 @@ import { FaGithub } from "react-icons/fa";
 import Layout from "@/components/Layout";
 import { loginSchema, type LoginFormData } from "@/lib/validations";
 import { useAuth } from "@/contexts/AuthContext";
+import { Link, useNavigate } from "react-router-dom";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -75,12 +76,8 @@ export default function Login() {
         return;
       }
 
-      setSuccess("Login successful! Redirecting to dashboard...");
-      
-      // Navigation will happen automatically via the useEffect above
-      setTimeout(() => {
-        navigate("/dashboard", { replace: true });
-      }, 1500);
+      setSuccess("Login successful! Redirecting...");
+      navigate("/dashboard", { replace: true });
       
     } catch (err: any) {
       console.error('Login error:', err);

@@ -20,6 +20,7 @@ import { FaGithub } from "react-icons/fa";
 import Layout from "@/components/Layout";
 import { registrationSchema, type RegistrationFormData, getPasswordStrength } from "@/lib/validations";
 import { useAuth } from "@/contexts/AuthContext";
+import { Link, useNavigate } from "react-router-dom";
 
 export default function Register() {
   const navigate = useNavigate();

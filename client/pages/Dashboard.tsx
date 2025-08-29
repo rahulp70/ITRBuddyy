@@ -10,15 +10,18 @@ import { useAuth } from "@/contexts/AuthContext";
 import DocumentManager from "@/components/DocumentManager";
 import StatsCards from "@/components/StatsCards";
 import ITRRecommendation from "@/components/ITRRecommendation";
+import { useNavigate } from "react-router-dom";
 
 function DashboardContent() {
   const { user, profile, signOut, isLoading, isSupabaseConfigured } = useAuth();
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const navigate = useNavigate();
 
   const handleSignOut = async () => {
     setIsSigningOut(true);
     try {
       await signOut();
+      navigate('/login', { replace: true });
     } catch (error) {
       console.error('Sign out error:', error);
     } finally {
