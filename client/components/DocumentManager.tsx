@@ -15,6 +15,8 @@ import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
+const PAN_REGEX = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
+
 export type DocType =
   | "Form 16"
   | "Form 26AS/AIS"
@@ -308,6 +310,10 @@ export default function DocumentManager({ className }: { className?: string }) {
       if (def.required && (v === undefined || v === null || String(v).trim() === "")) {
         errs[def.name] = "Required";
       }
+      if (def.type === "text" && def.name === "PAN" && v != null && String(v).trim() !== "") {
+        const txt = String(v).toUpperCase();
+        if (!PAN_REGEX.test(txt)) errs[def.name] = "PAN must be 5 letters, 4 digits, 1 letter (e.g., ABCDE1234F)";
+      }
       if (def.type === "number" && v !== undefined && v !== null && String(v).trim() !== "") {
         const n = Number(v);
         if (!Number.isFinite(n) || n < 0) errs[def.name] = "Enter a valid number";
@@ -343,6 +349,10 @@ export default function DocumentManager({ className }: { className?: string }) {
       const messages: string[] = djson.extracted?.messages || [];
       setDocs((prev) => prev.map((d) => (d.id === editDoc.id ? { ...d, keySummary: summary, fields, quality, messages } : d)));
     } finally {
+      try {
+        sessionStorage.removeItem("itr:manual:working");
+        window.dispatchEvent(new CustomEvent("itr:manual-working"));
+      } catch {}
       setEditDocId(null);
     }
   }
@@ -418,6 +428,7 @@ export default function DocumentManager({ className }: { className?: string }) {
               <div className="text-xs text-gray-500">{completion}%</div>
             </div>
             <Progress value={completion} className="h-2" />
+            <div className="text-xs text-gray-600 mt-1">{nextAction} at {completion}%</div>
           </div>
           <form onSubmit={handleUpload} className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
             <div className="space-y-2">
@@ -551,7 +562,15 @@ export default function DocumentManager({ className }: { className?: string }) {
                       <Button size="sm" variant="outline" onClick={() => onAskAI(`Explain how to use ${d.docType} in ITR and common mistakes.`)}>Ask AI</Button>
                       {d.status === "extracted" && (
                         <>
-                          <Dialog open={editDocId === d.id} onOpenChange={(open) => setEditDocId(open ? d.id : null)}>
+                          <Dialog open={editDocId === d.id} onOpenChange={(open) => {
+                            if (!open) {
+                              try {
+                                sessionStorage.removeItem("itr:manual:working");
+                                window.dispatchEvent(new CustomEvent("itr:manual-working"));
+                              } catch {}
+                            }
+                            setEditDocId(open ? d.id : null);
+                          }}>
                             <DialogTrigger asChild>
                               <Button size="sm" variant="secondary">Enter details manually</Button>
                             </DialogTrigger>
@@ -571,7 +590,10 @@ export default function DocumentManager({ className }: { className?: string }) {
                                       aria-invalid={!!editErrors[def.name]}
                                       value={String(editValues[def.name] ?? "")}
                                       onChange={(e) => {
-                                        const val = def.type === "text" ? e.target.value : Number(e.target.value.replace(/[^\d]/g, ""));
+                                        let val: any = def.type === "text" ? e.target.value : Number(e.target.value.replace(/[^\d]/g, ""));
+                                        if (def.type === "text" && def.name === "PAN") {
+                                          val = String(val).toUpperCase();
+                                        }
                                         setEditValues((prev) => {
                                           const next: any = { ...prev, [def.name]: val };
                                           if ((def.name === "Salary" || def.name === "Deductions") && (next["Salary"] != null || next["Deductions"] != null)) {
@@ -579,10 +601,20 @@ export default function DocumentManager({ className }: { className?: string }) {
                                             const dd = Number(next["Deductions"] || 0);
                                             next["Taxable Income"] = Math.max(0, s - dd);
                                           }
+                                          try {
+                                            sessionStorage.setItem("itr:manual:working", JSON.stringify({ docId: d.id, fields: next }));
+                                            window.dispatchEvent(new CustomEvent("itr:manual-working"));
+                                          } catch {}
                                           return next;
                                         });
+                                        if (def.type === "text" && def.name === "PAN") {
+                                          const ok = PAN_REGEX.test(String(val));
+                                          setEditErrors((prev) => ({ ...prev, [def.name]: ok || String(val).trim() === "" ? "" : "PAN must be 5 letters, 4 digits, 1 letter (e.g., ABCDE1234F)" }));
+                                        }
                                       }}
-                                      placeholder={def.type === "text" ? `Enter ${def.label}` : "0"}
+                                      placeholder={def.type === "text" ? (def.name === "PAN" ? "ABCDE1234F" : `Enter ${def.label}`) : "0"}
+                                      maxLength={def.name === "PAN" ? 10 : undefined}
+                                      pattern={def.name === "PAN" ? "[A-Z]{5}[0-9]{4}[A-Z]" : undefined}
                                       className={editErrors[def.name] ? "border-red-500" : undefined}
                                     />
                                     {editErrors[def.name] && <div className="text-xs text-red-600">{editErrors[def.name]}</div>}
