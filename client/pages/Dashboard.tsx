@@ -10,6 +10,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import DocumentManager from "@/components/DocumentManager";
 import StatsCards from "@/components/StatsCards";
 import ITRRecommendation from "@/components/ITRRecommendation";
+import TaxNews from "@/components/TaxNews";
 import { useNavigate } from "react-router-dom";
 
 function DashboardContent() {
@@ -107,6 +108,9 @@ function DashboardContent() {
 
         {/* ITR Recommendation */}
         <ITRRecommendation />
+
+        {/* Tax News / Notifications */}
+        <TaxNews />
 
         {/* Authentication Mode Info */}
         {!isSupabaseConfigured && (
