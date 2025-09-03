@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { MessageCircle, Send, Sparkles } from "lucide-react";
+import { MessageCircle, Send, Sparkles, ThumbsUp, ThumbsDown, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
@@ -32,6 +32,7 @@ export default function ChatbotFab() {
   });
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [feedbackBusy, setFeedbackBusy] = useState<string | null>(null);
   const convRef = useRef<string | null>(sessionStorage.getItem(STORAGE_CONV));
   const endRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -138,6 +139,22 @@ export default function ChatbotFab() {
     sendToBackend(text).finally(() => setSending(false));
   };
 
+  async function sendFeedback(assistantIndex: number, good: boolean) {
+    try {
+      const msg = messages[assistantIndex];
+      const prevUser = [...messages.slice(0, assistantIndex)].reverse().find((m) => m.role === "user");
+      if (!msg || !prevUser) return;
+      setFeedbackBusy(msg.id);
+      await fetch("/api/chat/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: prevUser.text, answer: msg.text, good, comment: "" }),
+      });
+    } finally {
+      setFeedbackBusy(null);
+    }
+  }
+
   // Allow other components to open and ask the chatbot
   useEffect(() => {
     const onAsk = (e: any) => {
@@ -169,14 +186,25 @@ export default function ChatbotFab() {
           <div className="h-full flex flex-col">
             <ScrollArea className="flex-1 p-4">
               <div className="space-y-3">
-                {messages.map((m) => (
+                {messages.map((m, idx) => (
                   <div key={m.id} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
                     {m.role === "user" ? (
                       <div className={`px-3 py-2 rounded-lg text-sm max-w-[80%] bg-brand-600 text-white`}>
                         {m.text}
                       </div>
                     ) : (
-                      <div className={`px-3 py-2 rounded-lg text-sm max-w-[80%] bg-gray-100 prose prose-sm`} dangerouslySetInnerHTML={{ __html: marked.parse(m.text) as string }} />
+                      <div className="max-w-[80%]">
+                        <div className={`px-3 py-2 rounded-lg text-sm bg-gray-100 prose prose-sm`} dangerouslySetInnerHTML={{ __html: marked.parse(m.text) as string }} />
+                        <div className="flex items-center gap-1 mt-1">
+                          <span className="sr-only">Was this helpful?</span>
+                          <Button size="icon" variant="ghost" aria-label="Helpful" disabled={feedbackBusy === m.id} onClick={() => sendFeedback(idx, true)}>
+                            {feedbackBusy === m.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <ThumbsUp className="w-4 h-4" />}
+                          </Button>
+                          <Button size="icon" variant="ghost" aria-label="Not helpful" disabled={feedbackBusy === m.id} onClick={() => sendFeedback(idx, false)}>
+                            {feedbackBusy === m.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <ThumbsDown className="w-4 h-4" />}
+                          </Button>
+                        </div>
+                      </div>
                     )}
                   </div>
                 ))}
@@ -199,9 +227,10 @@ export default function ChatbotFab() {
                 onKeyDown={(e) => {
                   if (e.key === "Enter") handleSend();
                 }}
+                aria-busy={sending}
               />
               <Button onClick={handleSend} aria-label="Send message" disabled={sending}>
-                <Send className="w-4 h-4" />
+                {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
               </Button>
             </div>
           </div>
