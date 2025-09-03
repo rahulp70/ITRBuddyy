@@ -28,6 +28,71 @@ function getLearnedAnswer(query: string): string | null {
   return null;
 }
 
+// --- Simple RAG utilities: fetch official content from incometaxindia.gov.in and cache
+const RAG_ENABLED = (process.env.RAG_ENABLED ?? "true").toLowerCase() !== "false";
+const ragCache = new Map<string, { ts: number; text: string }>();
+const RAG_TTL_MS = 24 * 60 * 60 * 1000;
+const RAG_MAX_SNIPPET = 1800; // chars per source
+
+function stripHtml(html: string) {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;|&amp;|&lt;|&gt;|&quot;|&#39;/g, (m) => ({ "&nbsp;": " ", "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&#39;": "'" } as any)[m] || " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+async function fetchWithCache(url: string): Promise<string | null> {
+  try {
+    const now = Date.now();
+    const cached = ragCache.get(url);
+    if (cached && now - cached.ts < RAG_TTL_MS) return cached.text;
+    const resp = await fetch(url as any, { headers: { Accept: "text/html" } } as any);
+    if (!resp.ok) return null;
+    const html = await resp.text();
+    const text = stripHtml(html).slice(0, 20000);
+    ragCache.set(url, { ts: now, text });
+    return text;
+  } catch {
+    return null;
+  }
+}
+
+function selectRagUrls(query: string): string[] {
+  const q = query.toLowerCase();
+  const urls = new Set<string>();
+  const base = "https://incometaxindia.gov.in?utm_source=chatgpt.com";
+  urls.add(base);
+  if (/\b80c\b/.test(q)) urls.add("https://incometaxindia.gov.in?utm_source=chatgpt.com#80C");
+  if (/\b80d\b/.test(q)) urls.add("https://incometaxindia.gov.in?utm_source=chatgpt.com#80D");
+  if (/\b80tta\b/.test(q)) urls.add("https://incometaxindia.gov.in?utm_source=chatgpt.com#80TTA");
+  if (/\bhra\b|house\s*rental\s*allowance/.test(q)) urls.add("https://incometaxindia.gov.in?utm_source=chatgpt.com#HRA");
+  if (/\bitr[-\s]*1|sahaj/.test(q)) urls.add("https://incometaxindia.gov.in?utm_source=chatgpt.com#ITR-1");
+  if (/\bitr[-\s]*2/.test(q)) urls.add("https://incometaxindia.gov.in?utm_source=chatgpt.com#ITR-2");
+  if (/\bitr[-\s]*3/.test(q)) urls.add("https://incometaxindia.gov.in?utm_source=chatgpt.com#ITR-3");
+  if (/\bitr[-\s]*4/.test(q)) urls.add("https://incometaxindia.gov.in?utm_source=chatgpt.com#ITR-4");
+  if (/\b26as\b|\bais\b/.test(q)) urls.add("https://incometaxindia.gov.in?utm_source=chatgpt.com#26AS");
+  if (/\btds\b/.test(q)) urls.add("https://incometaxindia.gov.in?utm_source=chatgpt.com#TDS");
+  return Array.from(urls).slice(0, 5);
+}
+
+async function getRagContext(query: string): Promise<{ text: string; sources: string[] }> {
+  if (!RAG_ENABLED) return { text: "", sources: [] };
+  const urls = selectRagUrls(query);
+  const out: string[] = [];
+  const ok: string[] = [];
+  for (const u of urls) {
+    const t = await fetchWithCache(u);
+    if (t && t.length > 60) {
+      ok.push(u);
+      out.push(`Source: ${u}\n${t.slice(0, RAG_MAX_SNIPPET)}`);
+    }
+  }
+  return { text: out.join("\n\n"), sources: ok.length ? ok : urls };
+}
+
 function buildUserContext(userId: string) {
   const docs = getAllDocs().filter((d) => d.userId === userId && d.status !== "error");
   if (!docs.length) return "No uploaded docs in context.";
@@ -78,7 +143,6 @@ function generateDeductionTips(userId: string) {
   if (a.medicalExp > 0) tips.push("• If medical expenses are high for specified diseases, evaluate 80DDB eligibility (requires specific conditions and certificates).");
   tips.push("• Consider charitable donations (80G) to registered institutions for additional deductions.");
 
-  const note = "See official guidance: https://incometaxindia.gov.in";
   const snapshot = `Current snapshot: Salary ₹${a.salary.toLocaleString()}, TDS ₹${a.tds.toLocaleString()}, 80C used ₹${used80c.toLocaleString()}, Savings interest ₹${a.bankInterest.toLocaleString()}, HRA ₹${a.hra.toLocaleString()}, Home-loan interest ₹${a.loanInterest.toLocaleString()}`;
   return `**Personalized Deduction Tips** 💡\n\n${snapshot}\n\n${tips.join("\n")}\n\n_Source: [incometaxindia.gov.in](https://incometaxindia.gov.in)`;
 }
@@ -118,21 +182,23 @@ function replyFor(input: string, userId = "dev-user"): string {
 }
 
 // --- Non-streaming Gemini call, we will stream the final result to client in chunks
-async function callGeminiSSEStream({ query, history, userContext, learned }: { query: string; history: Msg[]; userContext: string; learned: string | null }, res: Response) {
+async function callGeminiSSEStream({ query, history, userContext, learned, ragText, ragSources }: { query: string; history: Msg[]; userContext: string; learned: string | null; ragText: string; ragSources: string[] }, res: Response) {
   const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GEMINI_API_KEY;
   if (!apiKey) return false;
   try {
     const sys = baseSystemPrompt();
     const preTips = /80c|80d|deduction|tip|save tax/i.test(query) ? generateDeductionTips("dev-user") : "";
     const learnedBlock = learned ? `\n\nPreferred guidance from past feedback (use if relevant):\n${learned}` : "";
+    const ragBlock = ragText ? `\n\nOfficial info snippets from incometaxindia.gov.in (use for accuracy, and cite links):\n${ragText}\n\nSources:\n${ragSources.map((s) => `- ${s}`).join("\n")}` : "";
     const prompt = [
       sys,
       `\n\nUser context (docs & extracted data):\n${userContext}`,
       preTips ? `\n\nPersonalized deduction insights:\n${preTips}` : "",
       learnedBlock,
+      ragBlock,
       `\n\nConversation so far:\n${history.map((m) => `${m.role === "user" ? "User" : "Assistant"}: ${m.text}`).join("\n")}`,
       `\n\nUser question: ${query}`,
-      "\n\nRespond in Markdown."
+      "\n\nRespond in Markdown. Add a 'Sources' section with the provided links if relevant."
     ].join("");
 
     const upstream = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent?key=${apiKey}` as any, {
@@ -153,7 +219,6 @@ async function callGeminiSSEStream({ query, history, userContext, learned }: { q
       const part = text.slice(i, i + chunkSize);
       res.write(`data: ${JSON.stringify({ delta: part })}\n\n`);
       i += chunkSize;
-      // Small delay to simulate streaming cadence
       // eslint-disable-next-line no-await-in-loop
       await new Promise((r) => setTimeout(r, 12));
     }
@@ -165,17 +230,19 @@ async function callGeminiSSEStream({ query, history, userContext, learned }: { q
 }
 
 // --- OpenRouter streaming, with preference for open-source models as fallback
-async function callOpenRouterSSE({ query, history, userContext, learned }: { query: string; history: Msg[]; userContext: string; learned: string | null }, res: Response) {
+async function callOpenRouterSSE({ query, history, userContext, learned, ragText, ragSources }: { query: string; history: Msg[]; userContext: string; learned: string | null; ragText: string; ragSources: string[] }, res: Response) {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) return false;
   try {
     const userId = "dev-user";
     const preTips = /80c|80d|deduction|tip|save tax/i.test(query) ? generateDeductionTips(userId) : "";
+    const ragBlock = ragText ? `Official info snippets from incometaxindia.gov.in (use for accuracy, and cite links):\n${ragText}\n\nSources:\n${ragSources.map((s) => `- ${s}`).join("\n")}` : "";
     const messages = [
       { role: "system", content: baseSystemPrompt() },
       { role: "system", content: `User context (docs & extracted data):\n${userContext}` },
       preTips ? { role: "system", content: `Precomputed personalized deduction insights (use and elaborate):\n${preTips}` } : null,
       learned ? { role: "system", content: `Preferred guidance from past feedback (use if relevant):\n${learned}` } : null,
+      ragBlock ? { role: "system", content: ragBlock } : null,
       ...history.map((m) => ({ role: m.role, content: m.text })),
       { role: "user", content: query },
     ].filter(Boolean) as any[];
@@ -189,7 +256,6 @@ async function callOpenRouterSSE({ query, history, userContext, learned }: { que
     ];
 
     let upstream: Response | null = null as any;
-    let chosen: string | null = null;
     for (const model of modelCandidates) {
       const resp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
@@ -198,7 +264,6 @@ async function callOpenRouterSSE({ query, history, userContext, learned }: { que
       } as any);
       if (resp.ok && (resp as any).body) {
         upstream = resp as any;
-        chosen = model;
         break;
       }
     }
@@ -295,9 +360,10 @@ router.get("/stream", async (req: Request, res: Response) => {
   const userId = "dev-user";
   const userCtx = buildUserContext(userId);
   const learned = getLearnedAnswer(q);
+  const { text: ragText, sources: ragSources } = await getRagContext(q);
 
   // Try Gemini first
-  const geminiText = await callGeminiSSEStream({ query: q, history, userContext: userCtx, learned }, res as any);
+  const geminiText = await callGeminiSSEStream({ query: q, history, userContext: userCtx, learned, ragText, ragSources }, res as any);
   if (typeof geminiText === "string" && geminiText.length > 0) {
     history.push({ id: randomUUID(), role: "assistant", text: geminiText, ts: Date.now() });
     conversations.set(conversationId, history);
@@ -306,7 +372,7 @@ router.get("/stream", async (req: Request, res: Response) => {
   }
 
   // Fallback: OpenRouter with open-source models
-  const openRouterText = await callOpenRouterSSE({ query: q, history, userContext: userCtx, learned }, res as any);
+  const openRouterText = await callOpenRouterSSE({ query: q, history, userContext: userCtx, learned, ragText, ragSources }, res as any);
   if (typeof openRouterText === "string" && openRouterText.length > 0) {
     history.push({ id: randomUUID(), role: "assistant", text: openRouterText, ts: Date.now() });
     conversations.set(conversationId, history);
