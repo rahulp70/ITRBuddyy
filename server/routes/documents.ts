@@ -3,7 +3,10 @@ import multer from "multer";
 import { randomUUID } from "crypto";
 
 const router = Router();
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+});
 
 type Status = "processing" | "completed" | "error";
 
@@ -26,7 +29,10 @@ interface ExtractedPayload {
 
 type JsonRecord = Record<string, any>;
 
-function getFieldValue(fields: ExtractedField[], name: string): string | number | undefined {
+function getFieldValue(
+  fields: ExtractedField[],
+  name: string,
+): string | number | undefined {
   const f = fields.find((x) => x.name.toLowerCase() === name.toLowerCase());
   return f?.value as any;
 }
@@ -43,9 +49,15 @@ function normalizeByDocType(ex: ExtractedPayload): JsonRecord | null {
     if (pan) out["PAN"] = pan;
     if (employer) out["employer_name"] = employer;
     if (gross != null) out["gross_salary"] = gross;
-    if (deds != null) out["deductions"] = { section_80C: typeof deds === "number" ? deds : undefined };
+    if (deds != null)
+      out["deductions"] = {
+        section_80C: typeof deds === "number" ? deds : undefined,
+      };
     if (tds != null) out["tds_deducted"] = tds;
-    const taxPayable = typeof ex.summary.taxableIncome === "number" ? Math.max(0, Math.round(ex.summary.taxableIncome * 0.1)) : undefined;
+    const taxPayable =
+      typeof ex.summary.taxableIncome === "number"
+        ? Math.max(0, Math.round(ex.summary.taxableIncome * 0.1))
+        : undefined;
     if (taxPayable) out["tax_payable"] = taxPayable;
     return out;
   }
@@ -62,7 +74,13 @@ function normalizeByDocType(ex: ExtractedPayload): JsonRecord | null {
   if (t.includes("salary slip")) {
     const gross = getFieldValue(ex.fields, "Salary");
     const deds = getFieldValue(ex.fields, "Deductions");
-    if (gross != null && deds != null && typeof gross === "number" && typeof deds === "number") out["net_salary"] = Math.max(0, gross - deds);
+    if (
+      gross != null &&
+      deds != null &&
+      typeof gross === "number" &&
+      typeof deds === "number"
+    )
+      out["net_salary"] = Math.max(0, gross - deds);
     return out;
   }
   if (t.includes("bank")) {
@@ -86,12 +104,16 @@ function normalizeByDocType(ex: ExtractedPayload): JsonRecord | null {
     return out;
   }
   if (t.includes("loan")) {
-    const interest = getFieldValue(ex.fields, "Interest Paid") ?? getFieldValue(ex.fields, "Deductions");
+    const interest =
+      getFieldValue(ex.fields, "Interest Paid") ??
+      getFieldValue(ex.fields, "Deductions");
     if (interest != null) out["interest_paid"] = interest;
     return out;
   }
   if (t.includes("medical")) {
-    const amt = getFieldValue(ex.fields, "Medical Expense") ?? getFieldValue(ex.fields, "Deductions");
+    const amt =
+      getFieldValue(ex.fields, "Medical Expense") ??
+      getFieldValue(ex.fields, "Deductions");
     if (amt != null) out["amount_paid"] = amt;
     return out;
   }
@@ -145,34 +167,68 @@ function extractHeuristics(text: string, docType: string): ExtractedPayload {
   // PAN
   const panMatch = text.match(/[A-Z]{5}[0-9]{4}[A-Z]/);
   if (panMatch) {
-    fields.push({ name: "PAN", value: panMatch[0], confidence: 0.95, source: "rule:regex" });
+    fields.push({
+      name: "PAN",
+      value: panMatch[0],
+      confidence: 0.95,
+      source: "rule:regex",
+    });
   }
 
   // Employer
   const employerLine = lines.find((l) => /employer|company|deductor/i.test(l));
   if (employerLine) {
-    const name = employerLine.replace(/^(Employer|Company|Deductor)\s*[:\-]\s*/i, "");
+    const name = employerLine.replace(
+      /^(Employer|Company|Deductor)\s*[:\-]\s*/i,
+      "",
+    );
     if (name && /[A-Za-z]/.test(name)) {
-      fields.push({ name: "Employer", value: name, confidence: 0.8, source: "rule:line" });
+      fields.push({
+        name: "Employer",
+        value: name,
+        confidence: 0.8,
+        source: "rule:line",
+      });
     }
   }
 
   // Amount-like lines
-  const amountCandidates = lines.filter((l) => /(salary|gross|taxable|tds|deduction|income)/i.test(l) && /\d/.test(l));
+  const amountCandidates = lines.filter(
+    (l) =>
+      /(salary|gross|taxable|tds|deduction|income)/i.test(l) && /\d/.test(l),
+  );
   const findAmount = (labelRegex: RegExp, name: string, confBase = 0.8) => {
     const line = amountCandidates.find((l) => labelRegex.test(l));
     if (line) {
       const amt = parseAmount(line);
-      if (amt !== null) fields.push({ name, value: amt, confidence: confBase, source: "rule:regex" });
+      if (amt !== null)
+        fields.push({
+          name,
+          value: amt,
+          confidence: confBase,
+          source: "rule:regex",
+        });
     }
   };
 
   if (/form\s*16/i.test(docType) || /salary\s*slip/i.test(docType)) {
-    findAmount(/(gross\s*salary|total\s*salary|income\s*from\s*salary)/i, "Salary", 0.9);
+    findAmount(
+      /(gross\s*salary|total\s*salary|income\s*from\s*salary)/i,
+      "Salary",
+      0.9,
+    );
     findAmount(/(basic\s*salary)/i, "Basic Salary", 0.8);
     findAmount(/\bhra\b|house\s*rental\s*allowance/i, "HRA", 0.8);
-    findAmount(/(conveyance|transport).*allowance/i, "Conveyance Allowance", 0.75);
-    findAmount(/(other\s*allowances|special\s*allowance)/i, "Other Allowances", 0.7);
+    findAmount(
+      /(conveyance|transport).*allowance/i,
+      "Conveyance Allowance",
+      0.75,
+    );
+    findAmount(
+      /(other\s*allowances|special\s*allowance)/i,
+      "Other Allowances",
+      0.7,
+    );
     findAmount(/(taxable\s*income|total\s*taxable)/i, "Taxable Income", 0.85);
     findAmount(/(tds|tax\s+deducted)/i, "TDS", 0.8);
     findAmount(/(deduction|80c|80d|80tta|investments)/i, "Deductions", 0.7);
@@ -188,7 +244,8 @@ function extractHeuristics(text: string, docType: string): ExtractedPayload {
   }
 
   // Compose summary
-  const get = (n: string): number => Number(fields.find((f) => f.name === n)?.value ?? 0);
+  const get = (n: string): number =>
+    Number(fields.find((f) => f.name === n)?.value ?? 0);
   const salary = get("Salary");
   const deductions = get("Deductions") || get("Eligible 80C");
   const taxable = get("Taxable Income") || Math.max(0, salary - deductions);
@@ -196,13 +253,17 @@ function extractHeuristics(text: string, docType: string): ExtractedPayload {
   // Determine quality
   let quality: Quality = "good";
   if (!text || text.trim().length < 20) quality = "unreadable";
-  const criticalFound = [panMatch, salary || get("Reported Income"), get("TDS")].filter(Boolean).length;
+  const criticalFound = [
+    panMatch,
+    salary || get("Reported Income"),
+    get("TDS"),
+  ].filter(Boolean).length;
   if (quality !== "unreadable" && criticalFound < 2) quality = "low";
 
   const messages: string[] = [];
   if (quality !== "good") {
     messages.push(
-      "We were unable to extract all necessary details accurately from this document. Please either upload a clearer / higher quality version or enter the details manually."
+      "We were unable to extract all necessary details accurately from this document. Please either upload a clearer / higher quality version or enter the details manually.",
     );
   }
 
@@ -210,7 +271,11 @@ function extractHeuristics(text: string, docType: string): ExtractedPayload {
     docType,
     quality,
     fields,
-    summary: { income: salary || get("Reported Income") || 0, deductions: deductions || 0, taxableIncome: taxable || 0 },
+    summary: {
+      income: salary || get("Reported Income") || 0,
+      deductions: deductions || 0,
+      taxableIncome: taxable || 0,
+    },
     messages,
   };
 }
@@ -227,7 +292,10 @@ async function parsePdfText(file: Express.Multer.File): Promise<string> {
   }
 }
 
-async function extractWithVisionIfPossible(file: Express.Multer.File, requestedDocType: string): Promise<ExtractedPayload | null> {
+async function extractWithVisionIfPossible(
+  file: Express.Multer.File,
+  requestedDocType: string,
+): Promise<ExtractedPayload | null> {
   try {
     const apiKey = process.env.OPENROUTER_API_KEY;
     if (!apiKey) return null;
@@ -238,12 +306,24 @@ async function extractWithVisionIfPossible(file: Express.Multer.File, requestedD
       "You are an OCR+NLP extractor for Indian tax documents. Return ONLY compact JSON with fields: fields:[{name,value,confidence,source}], summary:{income,deductions,taxableIncome}, quality: 'good'|'low'|'unreadable', messages: string[]. Focus on PAN, Salary/Income, TDS, Deductions, Employer.";
     const userContent = [
       { type: "input_image", image_url: dataUrl },
-      { type: "text", text: `Extract key fields from this ${requestedDocType}. Return JSON only.` },
+      {
+        type: "text",
+        text: `Extract key fields from this ${requestedDocType}. Return JSON only.`,
+      },
     ];
     const resp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({ model: "openai/gpt-4o-mini", messages: [{ role: "system", content: system }, { role: "user", content: userContent }] }),
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: "openai/gpt-4o-mini",
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: userContent },
+        ],
+      }),
     });
     if (!resp.ok) return null;
     const json = await resp.json();
@@ -262,10 +342,26 @@ async function extractWithVisionIfPossible(file: Express.Multer.File, requestedD
         : [];
       const income = Number(parsed.summary?.income ?? 0) || 0;
       const deductions = Number(parsed.summary?.deductions ?? 0) || 0;
-      const taxableIncome = Number(parsed.summary?.taxableIncome ?? Math.max(0, income - deductions)) || 0;
-      const quality: Quality = parsed.quality === "unreadable" ? "unreadable" : parsed.quality === "low" ? "low" : "good";
-      const messages: string[] = Array.isArray(parsed.messages) ? parsed.messages.map((m: any) => String(m)) : [];
-      return { docType: requestedDocType, quality, fields, summary: { income, deductions, taxableIncome }, messages };
+      const taxableIncome =
+        Number(
+          parsed.summary?.taxableIncome ?? Math.max(0, income - deductions),
+        ) || 0;
+      const quality: Quality =
+        parsed.quality === "unreadable"
+          ? "unreadable"
+          : parsed.quality === "low"
+            ? "low"
+            : "good";
+      const messages: string[] = Array.isArray(parsed.messages)
+        ? parsed.messages.map((m: any) => String(m))
+        : [];
+      return {
+        docType: requestedDocType,
+        quality,
+        fields,
+        summary: { income, deductions, taxableIncome },
+        messages,
+      };
     }
     return null;
   } catch {
@@ -274,14 +370,20 @@ async function extractWithVisionIfPossible(file: Express.Multer.File, requestedD
 }
 
 function computeIssuesForUser(userId: string): string[] {
-  const userDocs = Array.from(docs.values()).filter((d) => d.userId === userId && d.extracted);
+  const userDocs = Array.from(docs.values()).filter(
+    (d) => d.userId === userId && d.extracted,
+  );
   const issues: string[] = [];
   const f16 = userDocs.find((d) => /form\s*16/i.test(d.extracted!.docType));
-  const slip = userDocs.find((d) => /salary\s*slip/i.test(d.extracted!.docType));
+  const slip = userDocs.find((d) =>
+    /salary\s*slip/i.test(d.extracted!.docType),
+  );
   const f26 = userDocs.find((d) => /26as|ais/i.test(d.extracted!.docType));
   const getField = (doc: Doc | undefined, name: string): number => {
     if (!doc?.extracted) return 0;
-    const f = doc.extracted.fields.find((x) => x.name.toLowerCase() === name.toLowerCase());
+    const f = doc.extracted.fields.find(
+      (x) => x.name.toLowerCase() === name.toLowerCase(),
+    );
     return Number(f?.value || 0);
   };
   if (f16 && slip) {
@@ -289,81 +391,109 @@ function computeIssuesForUser(userId: string): string[] {
     const s2 = getField(slip, "Salary") || slip.extracted!.summary.income;
     if (s1 && s2) {
       const diff = Math.abs(s1 - s2) / Math.max(s1, s2);
-      if (diff > 0.02) issues.push("Salary mismatch between Form 16 and Salary Slip.");
+      if (diff > 0.02)
+        issues.push("Salary mismatch between Form 16 and Salary Slip.");
     }
   }
   if (f16 && f26) {
     const t1 = f16.extracted!.summary.taxableIncome;
-    const t2 = f26.extracted!.summary.taxableIncome || getField(f26, "Taxable Income");
+    const t2 =
+      f26.extracted!.summary.taxableIncome || getField(f26, "Taxable Income");
     if (t1 && t2) {
       const diff = Math.abs(t1 - t2) / Math.max(t1, t2);
-      if (diff > 0.05) issues.push("Reported taxable income differs between Form 16 and 26AS/AIS.");
+      if (diff > 0.05)
+        issues.push(
+          "Reported taxable income differs between Form 16 and 26AS/AIS.",
+        );
     }
   }
   return issues;
 }
 
-router.post("/upload", upload.single("file"), async (req: Request, res: Response) => {
-  const file = (req as any).file as Express.Multer.File | undefined;
-  const selectedDocType = String((req.body?.docType as string) || "");
-  if (!file) return res.status(400).json({ error: "file is required" });
-  const userId: string = ((req as any).user?.sub as string) || "dev-user";
+router.post(
+  "/upload",
+  upload.single("file"),
+  async (req: Request, res: Response) => {
+    const file = (req as any).file as Express.Multer.File | undefined;
+    const selectedDocType = String((req.body?.docType as string) || "");
+    if (!file) return res.status(400).json({ error: "file is required" });
+    const userId: string = ((req as any).user?.sub as string) || "dev-user";
 
-  const id = randomUUID();
-  const doc: Doc = {
-    id,
-    userId,
-    name: file.originalname,
-    type: file.mimetype,
-    size: file.size,
-    uploadedAt: Date.now(),
-    status: "processing",
-    docTypeLabel: selectedDocType,
-  };
-  // Enforce single active document per type per user by removing existing of same type
-  for (const [key, existing] of Array.from(docs.entries())) {
-    if (existing.userId === userId && existing.docTypeLabel && selectedDocType && existing.docTypeLabel === selectedDocType) {
-      docs.delete(key);
+    const id = randomUUID();
+    const doc: Doc = {
+      id,
+      userId,
+      name: file.originalname,
+      type: file.mimetype,
+      size: file.size,
+      uploadedAt: Date.now(),
+      status: "processing",
+      docTypeLabel: selectedDocType,
+    };
+    // Enforce single active document per type per user by removing existing of same type
+    for (const [key, existing] of Array.from(docs.entries())) {
+      if (
+        existing.userId === userId &&
+        existing.docTypeLabel &&
+        selectedDocType &&
+        existing.docTypeLabel === selectedDocType
+      ) {
+        docs.delete(key);
+      }
     }
-  }
-  docs.set(id, doc);
+    docs.set(id, doc);
 
-  (async () => {
-    const d = docs.get(id);
-    if (!d) return;
-    try {
-      let extracted: ExtractedPayload | null = null;
+    (async () => {
+      const d = docs.get(id);
+      if (!d) return;
+      try {
+        let extracted: ExtractedPayload | null = null;
 
-      // Prefer Gemini structured extraction for higher accuracy on PDFs and images
-      extracted = await extractWithGeminiIfPossible(file, selectedDocType || d.name);
+        // Prefer Gemini structured extraction for higher accuracy on PDFs and images
+        extracted = await extractWithGeminiIfPossible(
+          file,
+          selectedDocType || d.name,
+        );
 
-      if (!extracted) {
-        if (/^application\/pdf/.test(file.mimetype)) {
-          const text = await parsePdfText(file);
-          extracted = extractHeuristics(text, selectedDocType || d.name);
-        } else if (/^image\//.test(file.mimetype)) {
-          extracted = await extractWithVisionIfPossible(file, selectedDocType || d.name);
-          if (!extracted) {
+        if (!extracted) {
+          if (/^application\/pdf/.test(file.mimetype)) {
+            const text = await parsePdfText(file);
+            extracted = extractHeuristics(text, selectedDocType || d.name);
+          } else if (/^image\//.test(file.mimetype)) {
+            extracted = await extractWithVisionIfPossible(
+              file,
+              selectedDocType || d.name,
+            );
+            if (!extracted) {
+              extracted = extractHeuristics("", selectedDocType || d.name);
+            }
+          } else {
             extracted = extractHeuristics("", selectedDocType || d.name);
           }
-        } else {
-          extracted = extractHeuristics("", selectedDocType || d.name);
         }
+
+        d.status = "completed";
+        d.error = undefined;
+        d.extracted = extracted!;
+        docs.set(id, d);
+      } catch (e) {
+        d.status = "error";
+        d.error = "Extraction failed";
+        docs.set(id, d);
       }
+    })();
 
-      d.status = "completed";
-      d.error = undefined;
-      d.extracted = extracted!;
-      docs.set(id, d);
-    } catch (e) {
-      d.status = "error";
-      d.error = "Extraction failed";
-      docs.set(id, d);
-    }
-  })();
-
-  return res.status(201).json({ id, status: doc.status, name: doc.name, type: doc.type, size: doc.size });
-});
+    return res
+      .status(201)
+      .json({
+        id,
+        status: doc.status,
+        name: doc.name,
+        type: doc.type,
+        size: doc.size,
+      });
+  },
+);
 
 router.get("/:id/status", (req, res) => {
   const d = docs.get(req.params.id);
@@ -378,7 +508,13 @@ router.get("/:id/data", (req, res) => {
   const legacy = extracted ? extracted.summary : null;
   const issues = computeIssuesForUser(d.userId);
   const normalized = extracted ? normalizeByDocType(extracted) : null;
-  return res.json({ id: d.id, extractedData: legacy, extracted, normalized, issues });
+  return res.json({
+    id: d.id,
+    extractedData: legacy,
+    extracted,
+    normalized,
+    issues,
+  });
 });
 
 router.get("/:id/json", (req, res) => {
@@ -395,20 +531,44 @@ router.post("/:id/feedback", (req: Request, res: Response) => {
   if (!d.extracted) return res.status(400).json({ error: "no-extracted-data" });
   for (const f of fields) {
     if (!f || typeof f.name !== "string") continue;
-    const idx = d.extracted.fields.findIndex((x) => x.name.toLowerCase() === f.name.toLowerCase());
-    const val = typeof f.value === "number" ? f.value : isNaN(Number(f.value)) ? String(f.value) : Number(f.value);
-    const upd = { name: f.name, value: val, confidence: 1.0, source: "user:manual" } as any;
+    const idx = d.extracted.fields.findIndex(
+      (x) => x.name.toLowerCase() === f.name.toLowerCase(),
+    );
+    const val =
+      typeof f.value === "number"
+        ? f.value
+        : isNaN(Number(f.value))
+          ? String(f.value)
+          : Number(f.value);
+    const upd = {
+      name: f.name,
+      value: val,
+      confidence: 1.0,
+      source: "user:manual",
+    } as any;
     if (idx >= 0) d.extracted.fields[idx] = upd;
     else d.extracted.fields.push(upd);
   }
-  const get = (n: string): number => Number(d.extracted!.fields.find((f) => f.name.toLowerCase() === n.toLowerCase())?.value ?? 0);
-  const income = get("Salary") || get("Reported Income") || get("Business Income") || d.extracted!.summary.income;
-  const deductions = get("Deductions") || get("Eligible 80C") || d.extracted!.summary.deductions;
-  const taxableIncome = get("Taxable Income") || Math.max(0, income - deductions);
+  const get = (n: string): number =>
+    Number(
+      d.extracted!.fields.find((f) => f.name.toLowerCase() === n.toLowerCase())
+        ?.value ?? 0,
+    );
+  const income =
+    get("Salary") ||
+    get("Reported Income") ||
+    get("Business Income") ||
+    d.extracted!.summary.income;
+  const deductions =
+    get("Deductions") || get("Eligible 80C") || d.extracted!.summary.deductions;
+  const taxableIncome =
+    get("Taxable Income") || Math.max(0, income - deductions);
   d.extracted.summary = { income, deductions, taxableIncome };
   d.extracted.quality = "good";
   d.extracted.messages = d.extracted.messages || [];
-  d.extracted.messages = d.extracted.messages.filter((m) => !/unable to extract/i.test(m));
+  d.extracted.messages = d.extracted.messages.filter(
+    (m) => !/unable to extract/i.test(m),
+  );
   docs.set(d.id, d);
   return res.json({ ok: true });
 });
@@ -422,33 +582,191 @@ router.delete("/:id", (req: Request, res: Response) => {
 
 // Gemini-based structured extraction using prompt configurations per document type
 const PROMPT_CONFIG: Record<string, { name: string; fields: string[] }> = {
-  "Form 16": { name: "Form 16", fields: ["employee_name","employee_pan","employer_name","employer_address","employer_tan","assessment_year","employment_period","gross_salary","total_deductions","taxable_income","tax_deducted","tax_paid"] },
-  "Salary Slip": { name: "Salary Slip", fields: ["employee_name","employee_id","pay_period","month","year","department","designation","bank_account_number","pan","basic_salary","hra","special_allowance","other_allowances","gross_earnings","provident_fund","professional_tax","income_tax","other_deductions","total_deductions","net_salary"] },
-  "Bank Statement": { name: "Bank Statement", fields: ["account_holder_name","account_number","bank_name","branch_address","statement_period","opening_balance","closing_balance","total_deposits","total_withdrawals","interest_income"] },
-  "Investment Proof": { name: "Investment Proof", fields: ["investor_name","pan","policy_number","scheme_name","investment_amount","investment_date","financial_year"] },
-  "Rent Receipt": { name: "Rent Receipt", fields: ["tenant_name","landlord_name","rent_amount","payment_date","rental_property_address","rental_period"] },
-  "Form 26AS/AIS": { name: "Form 26AS/AIS", fields: ["assessee_name","pan","assessment_year","total_tax_deducted","total_tax_collected","advance_tax_paid","self_assessment_tax_paid","taxable_income","reported_income","tds"] },
-  "Loan Statement": { name: "Loan Statement", fields: ["borrower_name","loan_account_number","lender_name","loan_amount","interest_rate","statement_period","principal_paid","interest_paid","outstanding_balance"] },
-  "Medical Bill": { name: "Medical Bill", fields: ["patient_name","hospital_name","hospital_address","bill_number","bill_date","admission_date","discharge_date","total_bill_amount","medical_expense"] },
-  "Capital Gains Report": { name: "Capital Gains Report", fields: ["investor_name","pan","financial_year","asset_type","short_term_capital_gains","long_term_capital_gains","total_capital_gains","taxable_income"] },
-  "Business Income Document": { name: "Business Income Document", fields: ["business_name","pan_or_tan","financial_year","total_revenue","total_expenses","net_profit_or_loss","taxable_income"] },
+  "Form 16": {
+    name: "Form 16",
+    fields: [
+      "employee_name",
+      "employee_pan",
+      "employer_name",
+      "employer_address",
+      "employer_tan",
+      "assessment_year",
+      "employment_period",
+      "gross_salary",
+      "total_deductions",
+      "taxable_income",
+      "tax_deducted",
+      "tax_paid",
+    ],
+  },
+  "Salary Slip": {
+    name: "Salary Slip",
+    fields: [
+      "employee_name",
+      "employee_id",
+      "pay_period",
+      "month",
+      "year",
+      "department",
+      "designation",
+      "bank_account_number",
+      "pan",
+      "basic_salary",
+      "hra",
+      "special_allowance",
+      "other_allowances",
+      "gross_earnings",
+      "provident_fund",
+      "professional_tax",
+      "income_tax",
+      "other_deductions",
+      "total_deductions",
+      "net_salary",
+    ],
+  },
+  "Bank Statement": {
+    name: "Bank Statement",
+    fields: [
+      "account_holder_name",
+      "account_number",
+      "bank_name",
+      "branch_address",
+      "statement_period",
+      "opening_balance",
+      "closing_balance",
+      "total_deposits",
+      "total_withdrawals",
+      "interest_income",
+    ],
+  },
+  "Investment Proof": {
+    name: "Investment Proof",
+    fields: [
+      "investor_name",
+      "pan",
+      "policy_number",
+      "scheme_name",
+      "investment_amount",
+      "investment_date",
+      "financial_year",
+    ],
+  },
+  "Rent Receipt": {
+    name: "Rent Receipt",
+    fields: [
+      "tenant_name",
+      "landlord_name",
+      "rent_amount",
+      "payment_date",
+      "rental_property_address",
+      "rental_period",
+    ],
+  },
+  "Form 26AS/AIS": {
+    name: "Form 26AS/AIS",
+    fields: [
+      "assessee_name",
+      "pan",
+      "assessment_year",
+      "total_tax_deducted",
+      "total_tax_collected",
+      "advance_tax_paid",
+      "self_assessment_tax_paid",
+      "taxable_income",
+      "reported_income",
+      "tds",
+    ],
+  },
+  "Loan Statement": {
+    name: "Loan Statement",
+    fields: [
+      "borrower_name",
+      "loan_account_number",
+      "lender_name",
+      "loan_amount",
+      "interest_rate",
+      "statement_period",
+      "principal_paid",
+      "interest_paid",
+      "outstanding_balance",
+    ],
+  },
+  "Medical Bill": {
+    name: "Medical Bill",
+    fields: [
+      "patient_name",
+      "hospital_name",
+      "hospital_address",
+      "bill_number",
+      "bill_date",
+      "admission_date",
+      "discharge_date",
+      "total_bill_amount",
+      "medical_expense",
+    ],
+  },
+  "Capital Gains Report": {
+    name: "Capital Gains Report",
+    fields: [
+      "investor_name",
+      "pan",
+      "financial_year",
+      "asset_type",
+      "short_term_capital_gains",
+      "long_term_capital_gains",
+      "total_capital_gains",
+      "taxable_income",
+    ],
+  },
+  "Business Income Document": {
+    name: "Business Income Document",
+    fields: [
+      "business_name",
+      "pan_or_tan",
+      "financial_year",
+      "total_revenue",
+      "total_expenses",
+      "net_profit_or_loss",
+      "taxable_income",
+    ],
+  },
 };
 
-async function extractWithGeminiIfPossible(file: Express.Multer.File, requestedDocType: string): Promise<ExtractedPayload | null> {
+async function extractWithGeminiIfPossible(
+  file: Express.Multer.File,
+  requestedDocType: string,
+): Promise<ExtractedPayload | null> {
   try {
-    const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GEMINI_API_KEY;
+    const apiKey =
+      process.env.GEMINI_API_KEY || process.env.GOOGLE_GEMINI_API_KEY;
     if (!apiKey) return null;
-    const config = PROMPT_CONFIG[requestedDocType] || { name: requestedDocType, fields: ["pan","salary","deductions","taxable_income","tds"] };
+    const config = PROMPT_CONFIG[requestedDocType] || {
+      name: requestedDocType,
+      fields: ["pan", "salary", "deductions", "taxable_income", "tds"],
+    };
     const prompt = `You are an expert data extraction AI for Indian tax documents. The document type is "${config.name}". Extract ONLY these fields accurately: ${config.fields.join(", ")}. If a field is missing, return "N/A". Return a single compact JSON object with these keys exactly. Do not include any text outside the JSON object.`;
 
     const b64 = file.buffer.toString("base64");
-    const body = { contents: [{ role: "user", parts: [{ text: prompt }, { inlineData: { mimeType: file.mimetype, data: b64 } }] }] } as any;
+    const body = {
+      contents: [
+        {
+          role: "user",
+          parts: [
+            { text: prompt },
+            { inlineData: { mimeType: file.mimetype, data: b64 } },
+          ],
+        },
+      ],
+    } as any;
 
-    const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent?key=${apiKey}` as any, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    } as any);
+    const resp = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent?key=${apiKey}` as any,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      } as any,
+    );
     if (!resp.ok) return null;
     const json: any = await resp.json();
     const parts = json?.candidates?.[0]?.content?.parts || [];
@@ -462,45 +780,102 @@ async function extractWithGeminiIfPossible(file: Express.Multer.File, requestedD
     } catch {
       const start = cleaned.indexOf("{");
       const end = cleaned.lastIndexOf("}");
-      if (start >= 0 && end > start) parsed = JSON.parse(cleaned.slice(start, end + 1));
+      if (start >= 0 && end > start)
+        parsed = JSON.parse(cleaned.slice(start, end + 1));
     }
     if (!parsed || typeof parsed !== "object") return null;
 
     const fields: ExtractedField[] = [];
     const pushNum = (name: string, value: any, altNames: string[] = []) => {
-      const v = value != null ? value : altNames.reduce<any>((acc, k) => (acc != null ? acc : parsed[k]), null);
+      const v =
+        value != null
+          ? value
+          : altNames.reduce<any>(
+              (acc, k) => (acc != null ? acc : parsed[k]),
+              null,
+            );
       if (v == null || v === "N/A") return;
-      const num = typeof v === "number" ? v : Number(String(v).replace(/[^\d.-]/g, ""));
-      if (Number.isFinite(num)) fields.push({ name, value: Math.round(num), confidence: 0.92, source: "ocr:gemini" });
+      const num =
+        typeof v === "number" ? v : Number(String(v).replace(/[^\d.-]/g, ""));
+      if (Number.isFinite(num))
+        fields.push({
+          name,
+          value: Math.round(num),
+          confidence: 0.92,
+          source: "ocr:gemini",
+        });
     };
     const pushText = (name: string, value: any, altNames: string[] = []) => {
-      const v = value != null ? value : altNames.reduce<any>((acc, k) => (acc != null ? acc : parsed[k]), null);
+      const v =
+        value != null
+          ? value
+          : altNames.reduce<any>(
+              (acc, k) => (acc != null ? acc : parsed[k]),
+              null,
+            );
       if (!v || v === "N/A") return;
-      fields.push({ name, value: String(v), confidence: 0.9, source: "ocr:gemini" });
+      fields.push({
+        name,
+        value: String(v),
+        confidence: 0.9,
+        source: "ocr:gemini",
+      });
     };
 
     // Map common fields from structured JSON into our normalized field set
     pushText("PAN", parsed.employee_pan ?? parsed.pan ?? parsed.pan_or_tan);
-    pushText("Employer", parsed.employer_name ?? parsed.lender_name ?? parsed.hospital_name ?? parsed.bank_name);
-    pushNum("Salary", parsed.gross_salary ?? parsed.gross_earnings ?? parsed.total_revenue);
-    pushNum("Deductions", parsed.total_deductions ?? parsed.total_expenses ?? parsed.other_deductions);
+    pushText(
+      "Employer",
+      parsed.employer_name ??
+        parsed.lender_name ??
+        parsed.hospital_name ??
+        parsed.bank_name,
+    );
+    pushNum(
+      "Salary",
+      parsed.gross_salary ?? parsed.gross_earnings ?? parsed.total_revenue,
+    );
+    pushNum(
+      "Deductions",
+      parsed.total_deductions ??
+        parsed.total_expenses ??
+        parsed.other_deductions,
+    );
     pushNum("Taxable Income", parsed.taxable_income);
-    pushNum("TDS", parsed.tax_deducted ?? parsed.income_tax ?? parsed.total_tax_deducted ?? parsed.tds);
+    pushNum(
+      "TDS",
+      parsed.tax_deducted ??
+        parsed.income_tax ??
+        parsed.total_tax_deducted ??
+        parsed.tds,
+    );
     pushNum("Interest Income", parsed.interest_income);
     pushNum("Eligible 80C", parsed.investment_amount);
-    pushNum("Medical Expense", parsed.total_bill_amount ?? parsed.medical_expense);
+    pushNum(
+      "Medical Expense",
+      parsed.total_bill_amount ?? parsed.medical_expense,
+    );
     pushNum("Interest Paid", parsed.interest_paid);
 
     // Compute summary
-    const getField = (n: string) => Number(fields.find((f) => f.name === n)?.value ?? 0);
+    const getField = (n: string) =>
+      Number(fields.find((f) => f.name === n)?.value ?? 0);
     const income = getField("Salary") || Number(parsed.reported_income || 0);
-    const deductions = getField("Deductions") || Number(parsed.total_deductions || 0);
-    const taxableIncome = getField("Taxable Income") || Math.max(0, income - deductions);
+    const deductions =
+      getField("Deductions") || Number(parsed.total_deductions || 0);
+    const taxableIncome =
+      getField("Taxable Income") || Math.max(0, income - deductions);
 
     const quality: Quality = fields.length >= 3 ? "good" : "low";
     const messages: string[] = [];
 
-    return { docType: requestedDocType, quality, fields, summary: { income, deductions, taxableIncome }, messages };
+    return {
+      docType: requestedDocType,
+      quality,
+      fields,
+      summary: { income, deductions, taxableIncome },
+      messages,
+    };
   } catch {
     return null;
   }

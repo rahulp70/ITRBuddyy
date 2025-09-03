@@ -3,7 +3,15 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Mail, Calendar, Shield, LogOut, Settings, CheckCircle, Loader2 } from "lucide-react";
+import {
+  Mail,
+  Calendar,
+  Shield,
+  LogOut,
+  Settings,
+  CheckCircle,
+  Loader2,
+} from "lucide-react";
 import Layout from "@/components/Layout";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { useAuth } from "@/contexts/AuthContext";
@@ -22,14 +30,13 @@ function DashboardContent() {
     setIsSigningOut(true);
     try {
       await signOut();
-      navigate('/login', { replace: true });
+      navigate("/login", { replace: true });
     } catch (error) {
-      console.error('Sign out error:', error);
+      console.error("Sign out error:", error);
     } finally {
       setIsSigningOut(false);
     }
   };
-
 
   if (isLoading) {
     return (
@@ -50,14 +57,23 @@ function DashboardContent() {
           <div className="flex flex-col md:flex-row md:items-center md:justify-between">
             <div className="flex items-center space-x-4 mb-4 md:mb-0">
               <Avatar className="w-16 h-16">
-                <AvatarImage src={profile?.avatar_url || user?.user_metadata?.avatar_url} />
+                <AvatarImage
+                  src={profile?.avatar_url || user?.user_metadata?.avatar_url}
+                />
                 <AvatarFallback className="bg-brand-100 text-brand-600 text-lg font-semibold">
-                  {profile?.full_name?.[0] || user?.user_metadata?.full_name?.[0] || user?.email?.[0]?.toUpperCase() || 'U'}
+                  {profile?.full_name?.[0] ||
+                    user?.user_metadata?.full_name?.[0] ||
+                    user?.email?.[0]?.toUpperCase() ||
+                    "U"}
                 </AvatarFallback>
               </Avatar>
               <div>
                 <h1 className="text-3xl font-bold text-gray-900">
-                  Welcome back, {profile?.full_name || user?.user_metadata?.full_name || 'User'}!
+                  Welcome back,{" "}
+                  {profile?.full_name ||
+                    user?.user_metadata?.full_name ||
+                    "User"}
+                  !
                 </h1>
                 <p className="text-gray-600 flex items-center mt-1">
                   <Mail className="w-4 h-4 mr-2" />
@@ -73,7 +89,8 @@ function DashboardContent() {
                   </Badge>
                   <span className="text-xs text-gray-500 flex items-center">
                     <Calendar className="w-3 h-3 mr-1" />
-                    Member since {new Date(user?.created_at || '').toLocaleDateString()}
+                    Member since{" "}
+                    {new Date(user?.created_at || "").toLocaleDateString()}
                   </span>
                 </div>
               </div>
@@ -117,12 +134,13 @@ function DashboardContent() {
           <Alert className="mt-8 border-blue-200 bg-blue-50">
             <CheckCircle className="h-4 w-4 text-blue-600" />
             <AlertDescription className="text-blue-800">
-              <strong>Development Mode:</strong> You're logged in with mock authentication. All data is simulated and stored locally.
-              Connect Supabase for real database integration and persistent user accounts.
+              <strong>Development Mode:</strong> You're logged in with mock
+              authentication. All data is simulated and stored locally. Connect
+              Supabase for real database integration and persistent user
+              accounts.
             </AlertDescription>
           </Alert>
         )}
-
       </div>
     </div>
   );

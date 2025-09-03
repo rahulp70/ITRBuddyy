@@ -1,7 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { MessageCircle, Send, Sparkles, ThumbsUp, ThumbsDown, Loader2 } from "lucide-react";
+import {
+  MessageCircle,
+  Send,
+  Sparkles,
+  ThumbsUp,
+  ThumbsDown,
+  Loader2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -21,7 +34,9 @@ export default function ChatbotFab() {
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
     const raw = sessionStorage.getItem(STORAGE_MESSAGES);
     if (raw) {
-      try { return JSON.parse(raw) as ChatMessage[]; } catch {}
+      try {
+        return JSON.parse(raw) as ChatMessage[];
+      } catch {}
     }
     return [
       {
@@ -52,21 +67,30 @@ export default function ChatbotFab() {
     }
   }, [open]);
 
-  const quickReplies = useMemo(() => [
-    "How to upload documents?",
-    "Explain section 80C",
-    "Where can I see processing status?",
-  ], []);
+  const quickReplies = useMemo(
+    () => [
+      "How to upload documents?",
+      "Explain section 80C",
+      "Where can I see processing status?",
+    ],
+    [],
+  );
 
   const appendLocal = (role: ChatMessage["role"], text: string) => {
-    setMessages((prev) => [...prev, { id: `${Date.now()}-${Math.random()}`, role, text }]);
+    setMessages((prev) => [
+      ...prev,
+      { id: `${Date.now()}-${Math.random()}`, role, text },
+    ]);
   };
 
   const canned = (q: string) => {
     const l = q.toLowerCase();
-    if (l.includes("upload")) return "Click 'Choose Files' or drag-and-drop PDF/JPG/PNG in the Dashboard upload area.";
-    if (l.includes("80c")) return "80C lets you claim deductions for investments like PPF/ELSS up to the allowed limit.";
-    if (l.includes("status")) return "Open Dashboard → Uploaded Documents to view processing status.";
+    if (l.includes("upload"))
+      return "Click 'Choose Files' or drag-and-drop PDF/JPG/PNG in the Dashboard upload area.";
+    if (l.includes("80c"))
+      return "80C lets you claim deductions for investments like PPF/ELSS up to the allowed limit.";
+    if (l.includes("status"))
+      return "Open Dashboard → Uploaded Documents to view processing status.";
     return "I can help with uploads, deductions, and ITR review. Ask me anything!";
   };
 
@@ -101,7 +125,11 @@ export default function ChatbotFab() {
               const copy = [...prev];
               if (!assistantId) {
                 assistantId = `${Date.now()}-assistant`;
-                copy.push({ id: assistantId, role: "assistant", text: data.delta });
+                copy.push({
+                  id: assistantId,
+                  role: "assistant",
+                  text: data.delta,
+                });
               } else {
                 const last = copy[copy.length - 1];
                 if (last && last.id === assistantId) last.text += data.delta;
@@ -143,13 +171,20 @@ export default function ChatbotFab() {
   async function sendFeedback(assistantIndex: number, good: boolean) {
     try {
       const msg = messages[assistantIndex];
-      const prevUser = [...messages.slice(0, assistantIndex)].reverse().find((m) => m.role === "user");
+      const prevUser = [...messages.slice(0, assistantIndex)]
+        .reverse()
+        .find((m) => m.role === "user");
       if (!msg || !prevUser) return;
       setFeedbackBusy(msg.id);
       await fetch("/api/chat/feedback", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: prevUser.text, answer: msg.text, good, comment: "" }),
+        body: JSON.stringify({
+          query: prevUser.text,
+          answer: msg.text,
+          good,
+          comment: "",
+        }),
       });
     } finally {
       setFeedbackBusy(null);
@@ -172,7 +207,11 @@ export default function ChatbotFab() {
     <div className="fixed bottom-6 right-6 z-50">
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetTrigger asChild>
-          <Button size="lg" className="rounded-full shadow-lg" aria-label="Open chatbot">
+          <Button
+            size="lg"
+            className="rounded-full shadow-lg"
+            aria-label="Open chatbot"
+          >
             <MessageCircle className="w-5 h-5 mr-2" />
             Chat
           </Button>
@@ -188,21 +227,51 @@ export default function ChatbotFab() {
             <ScrollArea className="flex-1 p-4">
               <div className="space-y-3">
                 {messages.map((m, idx) => (
-                  <div key={m.id} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+                  <div
+                    key={m.id}
+                    className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
+                  >
                     {m.role === "user" ? (
-                      <div className={`px-3 py-2 rounded-lg text-sm max-w-[80%] bg-brand-600 text-white`}>
+                      <div
+                        className={`px-3 py-2 rounded-lg text-sm max-w-[80%] bg-brand-600 text-white`}
+                      >
                         {m.text}
                       </div>
                     ) : (
                       <div className="max-w-[80%]">
-                        <div className={`px-3 py-2 rounded-lg text-sm bg-gray-100 prose prose-sm`} dangerouslySetInnerHTML={{ __html: marked.parse(m.text) as string }} />
+                        <div
+                          className={`px-3 py-2 rounded-lg text-sm bg-gray-100 prose prose-sm`}
+                          dangerouslySetInnerHTML={{
+                            __html: marked.parse(m.text) as string,
+                          }}
+                        />
                         <div className="flex items-center gap-1 mt-1">
                           <span className="sr-only">Was this helpful?</span>
-                          <Button size="icon" variant="ghost" aria-label="Helpful" disabled={feedbackBusy === m.id} onClick={() => sendFeedback(idx, true)}>
-                            {feedbackBusy === m.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <ThumbsUp className="w-4 h-4" />}
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            aria-label="Helpful"
+                            disabled={feedbackBusy === m.id}
+                            onClick={() => sendFeedback(idx, true)}
+                          >
+                            {feedbackBusy === m.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <ThumbsUp className="w-4 h-4" />
+                            )}
                           </Button>
-                          <Button size="icon" variant="ghost" aria-label="Not helpful" disabled={feedbackBusy === m.id} onClick={() => sendFeedback(idx, false)}>
-                            {feedbackBusy === m.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <ThumbsDown className="w-4 h-4" />}
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            aria-label="Not helpful"
+                            disabled={feedbackBusy === m.id}
+                            onClick={() => sendFeedback(idx, false)}
+                          >
+                            {feedbackBusy === m.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <ThumbsDown className="w-4 h-4" />
+                            )}
                           </Button>
                         </div>
                       </div>
@@ -228,13 +297,27 @@ export default function ChatbotFab() {
                   aria-busy={sending}
                   rows={3}
                 />
-                <Button onClick={handleSend} aria-label="Send message" disabled={sending} className="self-stretch">
-                  {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                <Button
+                  onClick={handleSend}
+                  aria-label="Send message"
+                  disabled={sending}
+                  className="self-stretch"
+                >
+                  {sending ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Send className="w-4 h-4" />
+                  )}
                 </Button>
               </div>
               <div className="px-0 pt-1 flex flex-wrap gap-2">
                 {quickReplies.map((q) => (
-                  <Button key={q} size="sm" variant="outline" onClick={() => handleQuick(q)}>
+                  <Button
+                    key={q}
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleQuick(q)}
+                  >
                     {q}
                   </Button>
                 ))}
