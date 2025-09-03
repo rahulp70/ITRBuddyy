@@ -3,6 +3,7 @@ import { MessageCircle, Send, Sparkles, ThumbsUp, ThumbsDown, Loader2 } from "lu
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { marked } from "marked";
 
@@ -211,27 +212,33 @@ export default function ChatbotFab() {
                 <div ref={endRef} />
               </div>
             </ScrollArea>
-            <div className="px-3 pb-2 flex flex-wrap gap-2 border-t bg-white/60">
-              {quickReplies.map((q) => (
-                <Button key={q} size="sm" variant="outline" onClick={() => handleQuick(q)}>
-                  {q}
+            <div className="p-3 border-t space-y-2 bg-white/60">
+              <div className="flex items-start gap-2">
+                <Textarea
+                  ref={inputRef as any}
+                  placeholder="Ask about taxes, deductions, forms... (Shift+Enter for newline, Enter to send)"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSend();
+                    }
+                  }}
+                  aria-busy={sending}
+                  rows={3}
+                />
+                <Button onClick={handleSend} aria-label="Send message" disabled={sending} className="self-stretch">
+                  {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                 </Button>
-              ))}
-            </div>
-            <div className="p-3 border-t flex items-center space-x-2">
-              <Input
-                ref={inputRef}
-                placeholder="Ask about taxes, deductions, forms..."
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handleSend();
-                }}
-                aria-busy={sending}
-              />
-              <Button onClick={handleSend} aria-label="Send message" disabled={sending}>
-                {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-              </Button>
+              </div>
+              <div className="px-0 pt-1 flex flex-wrap gap-2">
+                {quickReplies.map((q) => (
+                  <Button key={q} size="sm" variant="outline" onClick={() => handleQuick(q)}>
+                    {q}
+                  </Button>
+                ))}
+              </div>
             </div>
           </div>
         </SheetContent>
