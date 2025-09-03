@@ -333,16 +333,22 @@ router.post("/upload", upload.single("file"), async (req: Request, res: Response
     if (!d) return;
     try {
       let extracted: ExtractedPayload | null = null;
-      if (/^application\/pdf/.test(file.mimetype)) {
-        const text = await parsePdfText(file);
-        extracted = extractHeuristics(text, selectedDocType || d.name);
-      } else if (/^image\//.test(file.mimetype)) {
-        extracted = await extractWithVisionIfPossible(file, selectedDocType || d.name);
-        if (!extracted) {
+
+      // Prefer Gemini structured extraction for higher accuracy on PDFs and images
+      extracted = await extractWithGeminiIfPossible(file, selectedDocType || d.name);
+
+      if (!extracted) {
+        if (/^application\/pdf/.test(file.mimetype)) {
+          const text = await parsePdfText(file);
+          extracted = extractHeuristics(text, selectedDocType || d.name);
+        } else if (/^image\//.test(file.mimetype)) {
+          extracted = await extractWithVisionIfPossible(file, selectedDocType || d.name);
+          if (!extracted) {
+            extracted = extractHeuristics("", selectedDocType || d.name);
+          }
+        } else {
           extracted = extractHeuristics("", selectedDocType || d.name);
         }
-      } else {
-        extracted = extractHeuristics("", selectedDocType || d.name);
       }
 
       d.status = "completed";
