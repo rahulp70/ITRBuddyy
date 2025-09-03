@@ -21,7 +21,17 @@ async function fetchPage(url: string): Promise<string | null> {
     const now = Date.now();
     const hit = cache.get(url);
     if (hit && now - hit.ts < TTL) return hit.data as string;
-    const r = await fetch(url as any, { headers: { Accept: "text/html" } } as any);
+
+    const controller = new AbortController();
+    const to = setTimeout(() => controller.abort(), 8000);
+    const r = await fetch(url as any, {
+      headers: {
+        Accept: "text/html,application/xhtml+xml",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36 ITRBuddy/1.0",
+      },
+      signal: controller.signal as any,
+    } as any);
+    clearTimeout(to);
     if (!r.ok) return null;
     const html = await r.text();
     const text = stripHtml(html).slice(0, 200000);
