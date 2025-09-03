@@ -420,6 +420,92 @@ router.delete("/:id", (req: Request, res: Response) => {
   return res.json({ ok: true });
 });
 
+// Gemini-based structured extraction using prompt configurations per document type
+const PROMPT_CONFIG: Record<string, { name: string; fields: string[] }> = {
+  "Form 16": { name: "Form 16", fields: ["employee_name","employee_pan","employer_name","employer_address","employer_tan","assessment_year","employment_period","gross_salary","total_deductions","taxable_income","tax_deducted","tax_paid"] },
+  "Salary Slip": { name: "Salary Slip", fields: ["employee_name","employee_id","pay_period","month","year","department","designation","bank_account_number","pan","basic_salary","hra","special_allowance","other_allowances","gross_earnings","provident_fund","professional_tax","income_tax","other_deductions","total_deductions","net_salary"] },
+  "Bank Statement": { name: "Bank Statement", fields: ["account_holder_name","account_number","bank_name","branch_address","statement_period","opening_balance","closing_balance","total_deposits","total_withdrawals","interest_income"] },
+  "Investment Proof": { name: "Investment Proof", fields: ["investor_name","pan","policy_number","scheme_name","investment_amount","investment_date","financial_year"] },
+  "Rent Receipt": { name: "Rent Receipt", fields: ["tenant_name","landlord_name","rent_amount","payment_date","rental_property_address","rental_period"] },
+  "Form 26AS/AIS": { name: "Form 26AS/AIS", fields: ["assessee_name","pan","assessment_year","total_tax_deducted","total_tax_collected","advance_tax_paid","self_assessment_tax_paid","taxable_income","reported_income","tds"] },
+  "Loan Statement": { name: "Loan Statement", fields: ["borrower_name","loan_account_number","lender_name","loan_amount","interest_rate","statement_period","principal_paid","interest_paid","outstanding_balance"] },
+  "Medical Bill": { name: "Medical Bill", fields: ["patient_name","hospital_name","hospital_address","bill_number","bill_date","admission_date","discharge_date","total_bill_amount","medical_expense"] },
+  "Capital Gains Report": { name: "Capital Gains Report", fields: ["investor_name","pan","financial_year","asset_type","short_term_capital_gains","long_term_capital_gains","total_capital_gains","taxable_income"] },
+  "Business Income Document": { name: "Business Income Document", fields: ["business_name","pan_or_tan","financial_year","total_revenue","total_expenses","net_profit_or_loss","taxable_income"] },
+};
+
+async function extractWithGeminiIfPossible(file: Express.Multer.File, requestedDocType: string): Promise<ExtractedPayload | null> {
+  try {
+    const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GEMINI_API_KEY;
+    if (!apiKey) return null;
+    const config = PROMPT_CONFIG[requestedDocType] || { name: requestedDocType, fields: ["pan","salary","deductions","taxable_income","tds"] };
+    const prompt = `You are an expert data extraction AI for Indian tax documents. The document type is "${config.name}". Extract ONLY these fields accurately: ${config.fields.join(", ")}. If a field is missing, return "N/A". Return a single compact JSON object with these keys exactly. Do not include any text outside the JSON object.`;
+
+    const b64 = file.buffer.toString("base64");
+    const body = { contents: [{ role: "user", parts: [{ text: prompt }, { inlineData: { mimeType: file.mimetype, data: b64 } }] }] } as any;
+
+    const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent?key=${apiKey}` as any, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    } as any);
+    if (!resp.ok) return null;
+    const json: any = await resp.json();
+    const parts = json?.candidates?.[0]?.content?.parts || [];
+    const raw = parts.map((p: any) => p?.text || "").join("");
+    if (!raw) return null;
+
+    const cleaned = raw.replace(/```json|```/g, "").trim();
+    let parsed: any = null;
+    try {
+      parsed = JSON.parse(cleaned);
+    } catch {
+      const start = cleaned.indexOf("{");
+      const end = cleaned.lastIndexOf("}");
+      if (start >= 0 && end > start) parsed = JSON.parse(cleaned.slice(start, end + 1));
+    }
+    if (!parsed || typeof parsed !== "object") return null;
+
+    const fields: ExtractedField[] = [];
+    const pushNum = (name: string, value: any, altNames: string[] = []) => {
+      const v = value != null ? value : altNames.reduce<any>((acc, k) => (acc != null ? acc : parsed[k]), null);
+      if (v == null || v === "N/A") return;
+      const num = typeof v === "number" ? v : Number(String(v).replace(/[^\d.-]/g, ""));
+      if (Number.isFinite(num)) fields.push({ name, value: Math.round(num), confidence: 0.92, source: "ocr:gemini" });
+    };
+    const pushText = (name: string, value: any, altNames: string[] = []) => {
+      const v = value != null ? value : altNames.reduce<any>((acc, k) => (acc != null ? acc : parsed[k]), null);
+      if (!v || v === "N/A") return;
+      fields.push({ name, value: String(v), confidence: 0.9, source: "ocr:gemini" });
+    };
+
+    // Map common fields from structured JSON into our normalized field set
+    pushText("PAN", parsed.employee_pan ?? parsed.pan ?? parsed.pan_or_tan);
+    pushText("Employer", parsed.employer_name ?? parsed.lender_name ?? parsed.hospital_name ?? parsed.bank_name);
+    pushNum("Salary", parsed.gross_salary ?? parsed.gross_earnings ?? parsed.total_revenue);
+    pushNum("Deductions", parsed.total_deductions ?? parsed.total_expenses ?? parsed.other_deductions);
+    pushNum("Taxable Income", parsed.taxable_income);
+    pushNum("TDS", parsed.tax_deducted ?? parsed.income_tax ?? parsed.total_tax_deducted ?? parsed.tds);
+    pushNum("Interest Income", parsed.interest_income);
+    pushNum("Eligible 80C", parsed.investment_amount);
+    pushNum("Medical Expense", parsed.total_bill_amount ?? parsed.medical_expense);
+    pushNum("Interest Paid", parsed.interest_paid);
+
+    // Compute summary
+    const getField = (n: string) => Number(fields.find((f) => f.name === n)?.value ?? 0);
+    const income = getField("Salary") || Number(parsed.reported_income || 0);
+    const deductions = getField("Deductions") || Number(parsed.total_deductions || 0);
+    const taxableIncome = getField("Taxable Income") || Math.max(0, income - deductions);
+
+    const quality: Quality = fields.length >= 3 ? "good" : "low";
+    const messages: string[] = [];
+
+    return { docType: requestedDocType, quality, fields, summary: { income, deductions, taxableIncome }, messages };
+  } catch {
+    return null;
+  }
+}
+
 export function getAllDocs() {
   return Array.from(docs.values());
 }
