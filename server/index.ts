@@ -6,6 +6,7 @@ import authRouter from "./routes/auth";
 import documentsRouter from "./routes/documents";
 import itrRouter from "./routes/itr";
 import chatRouter from "./routes/chat";
+import newsRouter from "./routes/news";
 
 export function createServer() {
   const app = express();
@@ -28,6 +29,7 @@ export function createServer() {
   app.use("/api/documents", documentsRouter);
   app.use("/api/itr", itrRouter);
   app.use("/api/chat", chatRouter);
+  app.use("/api/news", newsRouter);
 
   return app;
 }
