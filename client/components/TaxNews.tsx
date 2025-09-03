@@ -15,11 +15,25 @@ export default function TaxNews() {
     (async () => {
       try {
         setLoading(true);
-        const r = await fetch("/api/news");
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        const j = await r.json();
-        if (mounted) setData(j);
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 7000);
+        const r = await fetch("/api/news", { signal: controller.signal });
+        clearTimeout(timer);
+        if (r.ok) {
+          const j = await r.json();
+          if (mounted) setData(j);
+          return;
+        }
+        throw new Error(`HTTP ${r.status}`);
       } catch (e: any) {
+        try {
+          const fb = await fetch("/news-fallback.json");
+          if (fb.ok) {
+            const j = await fb.json();
+            if (mounted) setData(j);
+            return;
+          }
+        } catch {}
         if (mounted) setError("Unable to load latest notifications. Please try again later.");
       } finally {
         if (mounted) setLoading(false);
