@@ -1,4 +1,5 @@
-// Environment variables for Supabase configuration
+import { createClient, type Session } from '@supabase/supabase-js';
+
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
@@ -6,24 +7,23 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 export const isSupabaseConfigured = !!(
   supabaseUrl &&
   supabaseAnonKey &&
-  supabaseUrl !== "https://your-project-id.supabase.co" &&
-  supabaseAnonKey !== "your-anon-key" &&
-  supabaseUrl.includes(".supabase.co")
+  supabaseUrl !== 'https://your-project-id.supabase.co' &&
+  supabaseAnonKey !== 'your-anon-key' &&
+  supabaseUrl.includes('.supabase.co')
 );
 
 // Log configuration status for debugging
-console.log("🔧 Supabase Configuration:", {
+console.log('🔧 Supabase Configuration:', {
   configured: isSupabaseConfigured,
   hasUrl: !!supabaseUrl,
   hasKey: !!supabaseAnonKey,
-  url: supabaseUrl ? supabaseUrl.substring(0, 30) + "..." : "Not set",
+  url: supabaseUrl ? supabaseUrl.substring(0, 30) + '...' : 'Not set',
 });
 
-// NOTE: Avoid importing '@supabase/supabase-js' directly in the client bundle to prevent build-time resolution
-// The app supports mock authentication when Supabase isn't configured. If you want to enable Supabase,
-// the recommended approach is to use server-side integration or ensure the dependency is available in the environment.
-
-export const supabase = null as any; // runtime client is not created in this environment
+// Create Supabase client only when configured
+export const supabase = isSupabaseConfigured
+  ? createClient(supabaseUrl as string, supabaseAnonKey as string)
+  : (null as any);
 
 // Database types (extend as needed)
 export interface UserProfile {
@@ -53,81 +53,76 @@ export interface AuthUser {
 // Mock authentication for development when Supabase isn't configured
 const mockAuthHelpers = {
   signUp: async (email: string, password: string, fullName: string) => {
-    console.log("🔄 Mock signup:", { email, fullName });
-    await new Promise((resolve) => setTimeout(resolve, 1000)); // Simulate API delay
+    console.log('🔄 Mock signup:', { email, fullName });
+    await new Promise((resolve) => setTimeout(resolve, 1000));
 
-    // Create mock user
     const mockUser = {
       id: `mock-${Date.now()}`,
       email,
       user_metadata: { full_name: fullName },
-      app_metadata: { provider: "email" },
+      app_metadata: { provider: 'email' },
       created_at: new Date().toISOString(),
       email_confirmed_at: new Date().toISOString(),
     };
 
-    // Store in localStorage for persistence
-    localStorage.setItem("mock-auth-user", JSON.stringify(mockUser));
+    localStorage.setItem('mock-auth-user', JSON.stringify(mockUser));
 
     return { data: { user: mockUser }, error: null };
   },
 
   signIn: async (email: string, password: string) => {
-    console.log("🔄 Mock signin:", { email });
+    console.log('🔄 Mock signin:', { email });
     await new Promise((resolve) => setTimeout(resolve, 1000));
 
-    // Check for demo credentials
-    if (email === "demo@itrbuddy.com" && password === "Demo123!") {
+    if (email === 'demo@itrbuddy.com' && password === 'Demo123!') {
       const mockUser = {
-        id: "demo-user",
-        email: "demo@itrbuddy.com",
-        user_metadata: { full_name: "Demo User" },
-        app_metadata: { provider: "email" },
+        id: 'demo-user',
+        email: 'demo@itrbuddy.com',
+        user_metadata: { full_name: 'Demo User' },
+        app_metadata: { provider: 'email' },
         created_at: new Date().toISOString(),
         email_confirmed_at: new Date().toISOString(),
       };
 
-      localStorage.setItem("mock-auth-user", JSON.stringify(mockUser));
+      localStorage.setItem('mock-auth-user', JSON.stringify(mockUser));
 
       return {
         data: {
           user: mockUser,
           session: {
-            access_token: "mock-jwt-token",
+            access_token: 'mock-jwt-token',
             user: mockUser,
-            expires_at: Date.now() + 3600000, // 1 hour
+            expires_at: Date.now() + 3600000,
           },
         },
         error: null,
       };
     }
 
-    // Simulate different error scenarios for testing
-    if (email === "error@test.com") {
-      return { data: null, error: { message: "Invalid login credentials" } };
+    if (email === 'error@test.com') {
+      return { data: null, error: { message: 'Invalid login credentials' } };
     }
 
     if (password.length < 6) {
-      return { data: null, error: { message: "Invalid login credentials" } };
+      return { data: null, error: { message: 'Invalid login credentials' } };
     }
 
-    // Default success for any other credentials
     const mockUser = {
       id: `user-${Date.now()}`,
       email,
-      user_metadata: { full_name: email.split("@")[0] },
-      app_metadata: { provider: "email" },
+      user_metadata: { full_name: email.split('@')[0] },
+      app_metadata: { provider: 'email' },
       created_at: new Date().toISOString(),
       email_confirmed_at: new Date().toISOString(),
     };
 
-    localStorage.setItem("mock-auth-user", JSON.stringify(mockUser));
+    localStorage.setItem('mock-auth-user', JSON.stringify(mockUser));
 
     return {
       data: {
         user: mockUser,
         session: {
-          access_token: "mock-jwt-token",
+          access_token: 'mock-jwt-token',
           user: mockUser,
           expires_at: Date.now() + 3600000,
         },
@@ -137,9 +132,9 @@ const mockAuthHelpers = {
   },
 
   signInWithOAuth: async (
-    provider: "google" | "github" | "apple" | "facebook",
+    provider: 'google' | 'github' | 'apple' | 'facebook',
   ) => {
-    console.log("🔄 Mock OAuth signin:", { provider });
+    console.log('🔄 Mock OAuth signin:', { provider });
     await new Promise((resolve) => setTimeout(resolve, 1500));
 
     const mockUser = {
@@ -154,20 +149,20 @@ const mockAuthHelpers = {
       email_confirmed_at: new Date().toISOString(),
     };
 
-    localStorage.setItem("mock-auth-user", JSON.stringify(mockUser));
+    localStorage.setItem('mock-auth-user', JSON.stringify(mockUser));
 
     return { data: { url: null }, error: null };
   },
 
   signOut: async () => {
-    console.log("🔄 Mock signout");
-    localStorage.removeItem("mock-auth-user");
-    localStorage.removeItem("mock-auth-profile");
+    console.log('🔄 Mock signout');
+    localStorage.removeItem('mock-auth-user');
+    localStorage.removeItem('mock-auth-profile');
     return { error: null };
   },
 
   getCurrentUser: async () => {
-    const mockUser = localStorage.getItem("mock-auth-user");
+    const mockUser = localStorage.getItem('mock-auth-user');
     if (mockUser) {
       return { user: JSON.parse(mockUser), error: null };
     }
@@ -175,36 +170,35 @@ const mockAuthHelpers = {
   },
 
   resetPassword: async (email: string) => {
-    console.log("🔄 Mock password reset:", { email });
+    console.log('🔄 Mock password reset:', { email });
     await new Promise((resolve) => setTimeout(resolve, 1000));
     return { data: {}, error: null };
   },
 
   updatePassword: async (password: string) => {
-    console.log("🔄 Mock password update");
+    console.log('🔄 Mock password update');
     await new Promise((resolve) => setTimeout(resolve, 1000));
     return { data: {}, error: null };
   },
 
   getUserProfile: async (userId: string) => {
-    const mockProfile = localStorage.getItem("mock-auth-profile");
+    const mockProfile = localStorage.getItem('mock-auth-profile');
     if (mockProfile) {
       return { profile: JSON.parse(mockProfile), error: null };
     }
 
-    // Create default profile from user data
-    const mockUser = localStorage.getItem("mock-auth-user");
+    const mockUser = localStorage.getItem('mock-auth-user');
     if (mockUser) {
       const user = JSON.parse(mockUser);
       const profile = {
         id: user.id,
         email: user.email,
-        full_name: user.user_metadata?.full_name || user.email.split("@")[0],
+        full_name: user.user_metadata?.full_name || user.email.split('@')[0],
         avatar_url: user.user_metadata?.avatar_url,
         created_at: user.created_at,
         updated_at: new Date().toISOString(),
       };
-      localStorage.setItem("mock-auth-profile", JSON.stringify(profile));
+      localStorage.setItem('mock-auth-profile', JSON.stringify(profile));
       return { profile, error: null };
     }
 
@@ -212,10 +206,10 @@ const mockAuthHelpers = {
   },
 
   updateUserProfile: async (userId: string, updates: Partial<UserProfile>) => {
-    console.log("🔄 Mock profile update:", updates);
+    console.log('🔄 Mock profile update:', updates);
     await new Promise((resolve) => setTimeout(resolve, 500));
 
-    const existingProfile = localStorage.getItem("mock-auth-profile");
+    const existingProfile = localStorage.getItem('mock-auth-profile');
     const profile = existingProfile ? JSON.parse(existingProfile) : {};
 
     const updatedProfile = {
@@ -224,7 +218,7 @@ const mockAuthHelpers = {
       updated_at: new Date().toISOString(),
     };
 
-    localStorage.setItem("mock-auth-profile", JSON.stringify(updatedProfile));
+    localStorage.setItem('mock-auth-profile', JSON.stringify(updatedProfile));
     return { data: updatedProfile, error: null };
   },
 
@@ -233,7 +227,7 @@ const mockAuthHelpers = {
     email: string,
     fullName: string,
   ) => {
-    console.log("��� Mock profile creation:", { userId, email, fullName });
+    console.log('🔄 Mock profile creation:', { userId, email, fullName });
 
     const profile = {
       id: userId,
@@ -243,46 +237,170 @@ const mockAuthHelpers = {
       updated_at: new Date().toISOString(),
     };
 
-    localStorage.setItem("mock-auth-profile", JSON.stringify(profile));
+    localStorage.setItem('mock-auth-profile', JSON.stringify(profile));
     return { data: profile, error: null };
   },
 };
 
-// Auth helper functions - default to mock helpers to avoid depending on Supabase at build time
-export const authHelpers = mockAuthHelpers;
+// Real auth helpers backed by Supabase
+const realAuthHelpers = {
+  signUp: async (email: string, password: string, fullName: string) => {
+    if (!supabase) return { data: null, error: { message: 'Supabase not configured' } };
 
-// Real-time subscription helpers (stubbed for mock mode)
-export const subscriptions = {
-  onAuthStateChange: (callback: (event: string, session: any) => void) => {
-    // Simulate auth state on startup
-    setTimeout(() => {
-      const mockUser = localStorage.getItem("mock-auth-user");
-      if (mockUser) {
-        const user = JSON.parse(mockUser);
-        const mockSession = {
-          access_token: "mock-jwt-token",
-          user,
-          expires_at: Date.now() + 3600000,
-        };
-        callback("SIGNED_IN", mockSession);
-      } else {
-        callback("SIGNED_OUT", null);
+    const { data, error } = await supabase.auth.signUp({ email, password }, { data: { full_name: fullName } as any });
+
+    if (error) return { data: null, error };
+
+    // Attempt to create a profile row
+    try {
+      if (data?.user) {
+        await supabase.from('profiles').upsert(
+          {
+            id: data.user.id,
+            email,
+            full_name: fullName,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'id' },
+        );
       }
-    }, 100);
+    } catch (e) {
+      console.warn('Failed to create profile row:', e);
+    }
+
+    return { data, error };
+  },
+
+  signIn: async (email: string, password: string) => {
+    if (!supabase) return { data: null, error: { message: 'Supabase not configured' } };
+    const res = await supabase.auth.signInWithPassword({ email, password });
+    return { data: res.data, error: res.error };
+  },
+
+  signInWithOAuth: async (provider: 'google' | 'github' | 'apple' | 'facebook') => {
+    if (!supabase) return { data: null, error: { message: 'Supabase not configured' } };
+    const res = await supabase.auth.signInWithOAuth({ provider });
+    return { data: res.data, error: res.error };
+  },
+
+  signOut: async () => {
+    if (!supabase) return { error: { message: 'Supabase not configured' } };
+    const { error } = await supabase.auth.signOut();
+    return { error };
+  },
+
+  getCurrentUser: async () => {
+    if (!supabase) return { user: null, error: { message: 'Supabase not configured' } };
+    const { data, error } = await supabase.auth.getUser();
+    return { user: data?.user ?? null, error };
+  },
+
+  resetPassword: async (email: string) => {
+    if (!supabase) return { data: null, error: { message: 'Supabase not configured' } };
+    const res = await supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
+    return { data: res.data, error: res.error };
+  },
+
+  updatePassword: async (password: string) => {
+    if (!supabase) return { data: null, error: { message: 'Supabase not configured' } };
+    const res = await supabase.auth.updateUser({ password });
+    return { data: res.data, error: res.error };
+  },
+
+  getUserProfile: async (userId: string) => {
+    if (!supabase) return { profile: null, error: { message: 'Supabase not configured' } };
+    const { data, error } = await supabase.from<UserProfile>('profiles').select('*').eq('id', userId).single();
+    return { profile: data ?? null, error };
+  },
+
+  updateUserProfile: async (userId: string, updates: Partial<UserProfile>) => {
+    if (!supabase) return { data: null, error: { message: 'Supabase not configured' } };
+    const { data, error } = await supabase.from<UserProfile>('profiles').update(updates).eq('id', userId).select().single();
+    return { data, error };
+  },
+
+  createUserProfile: async (userId: string, email: string, fullName: string) => {
+    if (!supabase) return { data: null, error: { message: 'Supabase not configured' } };
+    const payload = {
+      id: userId,
+      email,
+      full_name: fullName,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    const { data, error } = await supabase.from<UserProfile>('profiles').insert(payload).select().single();
+    return { data, error };
+  },
+};
+
+// Export auth helpers (real when configured, otherwise mock)
+export const authHelpers = isSupabaseConfigured ? realAuthHelpers : mockAuthHelpers;
+
+// Real-time subscription helpers
+export const subscriptions = {
+  onAuthStateChange: (callback: (event: string, session: Session | null) => void) => {
+    if (!isSupabaseConfigured || !supabase) {
+      // Fallback mock behavior
+      setTimeout(() => {
+        const mockUser = localStorage.getItem('mock-auth-user');
+        if (mockUser) {
+          const user = JSON.parse(mockUser);
+          const mockSession: any = {
+            access_token: 'mock-jwt-token',
+            user,
+            expires_at: Date.now() + 3600000,
+          };
+          callback('SIGNED_IN', mockSession);
+        } else {
+          callback('SIGNED_OUT', null);
+        }
+      }, 100);
+
+      return {
+        data: {
+          subscription: {
+            unsubscribe: () => console.log('🔄 Mock auth subscription unsubscribed'),
+          },
+        },
+      } as any;
+    }
+
+    return supabase.auth.onAuthStateChange((event, session) => {
+      callback(event, session?.session ?? null);
+    });
+  },
+
+  subscribeToProfile: (userId: string, callback: (payload: any) => void) => {
+    if (!isSupabaseConfigured || !supabase) {
+      return {
+        unsubscribe: () => console.log('🔄 Mock profile subscription unsubscribed'),
+      } as any;
+    }
+
+    // Subscribe to Postgres changes for the profiles table for this user
+    const channel = supabase
+      .channel(`public:profiles:id=eq.${userId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'profiles', filter: `id=eq.${userId}` },
+        (payload) => callback(payload),
+      )
+      .subscribe();
 
     return {
-      data: {
-        subscription: {
-          unsubscribe: () =>
-            console.log("🔄 Mock auth subscription unsubscribed"),
-        },
+      unsubscribe: () => {
+        try {
+          // supabase.removeChannel is available in newer SDKs
+          if ((supabase as any).removeChannel) {
+            (supabase as any).removeChannel(channel);
+          } else if ((channel as any).unsubscribe) {
+            (channel as any).unsubscribe();
+          }
+        } catch (e) {
+          console.warn('Failed to unsubscribe profile channel', e);
+        }
       },
-    } as any;
-  },
-  subscribeToProfile: (userId: string, callback: (payload: any) => void) => {
-    return {
-      unsubscribe: () =>
-        console.log("🔄 Mock profile subscription unsubscribed"),
     } as any;
   },
 };
