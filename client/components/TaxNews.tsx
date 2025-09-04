@@ -24,36 +24,50 @@ export default function TaxNews() {
 
   useEffect(() => {
     let mounted = true;
+
+    async function tryEndpoints() {
+      const endpoints = [
+        "/api/news",
+        `${window.location.origin}/api/news`,
+        `//${window.location.host}/api/news`,
+        `/.netlify/functions/api/news`,
+        `/news-fallback.json`,
+      ];
+
+      for (const url of endpoints) {
+        try {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 7000);
+          const res = await fetch(url, { signal: controller.signal, credentials: "same-origin" });
+          clearTimeout(timeout);
+          if (res && res.ok) {
+            const j = await res.json();
+            return j;
+          }
+        } catch (err: any) {
+          if (err && err.name === "AbortError") console.debug("fetch aborted", url);
+          else console.debug("fetch error", url, err?.message || err);
+          // continue to next
+        }
+      }
+      return null;
+    }
+
     (async () => {
       try {
         setLoading(true);
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), 7000);
-        const r = await fetch("/api/news", { signal: controller.signal });
-        clearTimeout(timer);
-        if (r.ok) {
-          const j = await r.json();
-          if (mounted) setData(j);
-          return;
-        }
-        throw new Error(`HTTP ${r.status}`);
-      } catch (e: any) {
-        try {
-          const fb = await fetch("/news-fallback.json");
-          if (fb.ok) {
-            const j = await fb.json();
-            if (mounted) setData(j);
-            return;
-          }
-        } catch {}
-        if (mounted)
-          setError(
-            "Unable to load latest notifications. Please try again later.",
-          );
+        const j = await tryEndpoints();
+        if (!mounted) return;
+        if (j) setData(j);
+        else setError("Unable to load latest notifications. Please try again later.");
+      } catch (err) {
+        console.error("Unexpected TaxNews error", err);
+        if (mounted) setError("Unable to load latest notifications. Please try again later.");
       } finally {
         if (mounted) setLoading(false);
       }
     })();
+
     return () => {
       mounted = false;
     };
