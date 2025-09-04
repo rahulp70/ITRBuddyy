@@ -130,17 +130,63 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const loadUserProfile = useCallback(
     async (userId: string) => {
       try {
-        const { profile: userProfile, error } =
-          await authHelpers.getUserProfile(userId);
+        const { profile: userProfile, error } = await authHelpers.getUserProfile(userId);
+
         if (error) {
-          console.error('Error loading user profile:', error);
+          // Provide more helpful debug output
+          try {
+            console.error('Error loading user profile:', error, JSON.stringify(error));
+          } catch (e) {
+            console.error('Error loading user profile (non-serializable):', error);
+          }
+
+          // Attempt to recover by creating a minimal profile when Supabase is configured
+          if (isSupabaseConfigured) {
+            try {
+              const { user: authUser } = await authHelpers.getCurrentUser();
+              if (authUser) {
+                const email = authUser.email ?? '';
+                const fullName = authUser.user_metadata?.full_name ?? '';
+                const createRes = await authHelpers.createUserProfile(authUser.id, email, fullName);
+                if ((createRes as any)?.data) {
+                  const { profile: newProfile } = await authHelpers.getUserProfile(authUser.id);
+                  setProfile(newProfile);
+                  cacheProfile(newProfile);
+                  return;
+                }
+              }
+            } catch (e) {
+              console.warn('Failed to recover by creating profile:', e);
+            }
+          }
+
           return;
+        }
+
+        // If no profile exists, try to create one from the auth user info
+        if (!userProfile && isSupabaseConfigured) {
+          try {
+            const { user: authUser } = await authHelpers.getCurrentUser();
+            if (authUser) {
+              const email = authUser.email ?? '';
+              const fullName = authUser.user_metadata?.full_name ?? email.split('@')[0] ?? '';
+              const createRes = await authHelpers.createUserProfile(userId, email, fullName);
+              if ((createRes as any)?.data) {
+                const { profile: newProfile } = await authHelpers.getUserProfile(userId);
+                setProfile(newProfile);
+                cacheProfile(newProfile);
+                return;
+              }
+            }
+          } catch (e) {
+            console.warn('Failed to create missing profile:', e);
+          }
         }
 
         setProfile(userProfile);
         cacheProfile(userProfile);
-      } catch (error) {
-        console.error('Error loading user profile:', error);
+      } catch (err) {
+        console.error('Error loading user profile:', err);
       }
     },
     [cacheProfile],
