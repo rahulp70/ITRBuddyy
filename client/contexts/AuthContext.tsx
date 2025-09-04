@@ -260,17 +260,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     // Also listen for manual in-app mock auth events so UI can trigger login without reloading
     const onMockAuth = async () => {
-      if (!isSupabaseConfigured) {
-        try {
-          const { user: currentUser, error } = await authHelpers.getCurrentUser();
-          if (!error && currentUser) {
-            setUser(currentUser as AuthUser);
-            await loadUserProfile(currentUser.id);
-            setLoading(false);
-          }
-        } catch (e) {
-          console.warn('Failed to refresh mock auth state', e);
+      try {
+        const { user: currentUser, error } = await authHelpers.getCurrentUser();
+        if (!error && currentUser) {
+          setUser(currentUser as AuthUser);
+          await loadUserProfile(currentUser.id);
+          setLoading(false);
         }
+      } catch (e) {
+        console.warn('Failed to refresh mock auth state', e);
       }
     };
 
