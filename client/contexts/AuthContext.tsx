@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
-import { Session } from '@supabase/supabase-js';
+type Session = { access_token?: string; user?: any; expires_at?: number } | null;
 import { authHelpers, subscriptions, isSupabaseConfigured, type UserProfile, type AuthUser } from '@/lib/supabase';
 
 interface AuthContextType {
