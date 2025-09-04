@@ -316,7 +316,7 @@ const realAuthHelpers = {
 
   updateUserProfile: async (userId: string, updates: Partial<UserProfile>) => {
     if (!supabase) return { data: null, error: { message: 'Supabase not configured' } };
-    const { data, error } = await supabase.from<UserProfile>('profiles').update(updates).eq('id', userId).select().single();
+    const { data, error } = await (supabase as any).from('profiles').update(updates).eq('id', userId).select().single();
     return { data, error };
   },
 
