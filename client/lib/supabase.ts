@@ -280,28 +280,44 @@ const realAuthHelpers = {
 
       // If Supabase returned an error (e.g. email not confirmed), attempt fallback
       const possibleMsg = res.error?.message || (res.error && (res.error as any).msg) || '';
-      if (res.error && String(possibleMsg).toLowerCase().includes('email not confirmed')) {
-        try {
-          const resp = await fetch('/api/auth/login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password }),
-          });
-          if (!resp.ok) {
-            const body = await resp.json().catch(() => ({}));
-            return { data: null, error: body.error || { message: 'Fallback login failed' } };
+      // If Supabase returned an error (e.g. email not confirmed or invalid credentials), decide whether to fallback
+      if (res.error) {
+        const lowered = String(possibleMsg).toLowerCase();
+        const shouldFallback =
+          lowered.includes('email not confirmed') ||
+          lowered.includes('invalid') ||
+          lowered.includes('user') ||
+          email === 'demo@itrbuddy.com';
+
+        if (shouldFallback) {
+          try {
+            const resp = await fetch('/api/auth/login', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email, password }),
+            });
+            if (!resp.ok) {
+              const body = await resp.json().catch(() => ({}));
+              return { data: null, error: body.error || { message: 'Fallback login failed' } };
+            }
+            const body = await resp.json();
+            return { data: { user: body.user, session: { access_token: body.token, user: body.user } }, error: null };
+          } catch (e) {
+            // fall through to return original error
           }
-          const body = await resp.json();
-          return { data: { user: body.user, session: { access_token: body.token, user: body.user } }, error: null };
-        } catch (e) {
-          return { data: null, error: { message: 'Fallback login failed' } };
         }
       }
 
       return { data: res.data, error: res.error };
     } catch (err: any) {
       const msg = err?.message || (err?.error && err.error.message) || '';
-      if (String(msg).toLowerCase().includes('email not confirmed')) {
+      const lowered = String(msg).toLowerCase();
+      const shouldFallbackErr =
+        lowered.includes('email not confirmed') ||
+        lowered.includes('invalid') ||
+        email === 'demo@itrbuddy.com';
+
+      if (shouldFallbackErr) {
         try {
           const resp = await fetch('/api/auth/login', {
             method: 'POST',
