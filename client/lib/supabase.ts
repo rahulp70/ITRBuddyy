@@ -244,127 +244,13 @@ const mockAuthHelpers = {
   },
 };
 
-// Auth helper functions that use either Supabase or mock authentication
-export const authHelpers = isSupabaseConfigured ? {
-  // Real Supabase authentication
-  signUp: async (email: string, password: string, fullName: string) => {
-    const { data, error } = await supabase!.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          full_name: fullName,
-        },
-      },
-    });
-    return { data, error };
-  },
+// Auth helper functions - default to mock helpers to avoid depending on Supabase at build time
+export const authHelpers = mockAuthHelpers;
 
-  signIn: async (email: string, password: string) => {
-    const { data, error } = await supabase!.auth.signInWithPassword({
-      email,
-      password,
-    });
-    return { data, error };
-  },
-
-  signInWithOAuth: async (provider: 'google' | 'github' | 'apple' | 'facebook') => {
-    const { data, error } = await supabase!.auth.signInWithOAuth({
-      provider,
-      options: {
-        redirectTo: `${window.location.origin}/dashboard`,
-      },
-    });
-    return { data, error };
-  },
-
-  signOut: async () => {
-    const { error } = await supabase!.auth.signOut();
-    return { error };
-  },
-
-  getCurrentUser: async () => {
-    const { data: { user }, error } = await supabase!.auth.getUser();
-    return { user, error };
-  },
-
-  resetPassword: async (email: string) => {
-    const { data, error } = await supabase!.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
-    });
-    return { data, error };
-  },
-
-  updatePassword: async (password: string) => {
-    const { data, error } = await supabase!.auth.updateUser({
-      password,
-    });
-    return { data, error };
-  },
-
-  getUserProfile: async (userId: string): Promise<{ profile: UserProfile | null; error: any }> => {
-    const { data: profile, error } = await supabase!
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single();
-    
-    return { profile, error };
-  },
-
-  updateUserProfile: async (userId: string, updates: Partial<UserProfile>) => {
-    const { data, error } = await supabase!
-      .from('profiles')
-      .update(updates)
-      .eq('id', userId)
-      .select()
-      .single();
-    
-    return { data, error };
-  },
-
-  createUserProfile: async (userId: string, email: string, fullName: string) => {
-    const { data, error } = await supabase!
-      .from('profiles')
-      .insert({
-        id: userId,
-        email,
-        full_name: fullName,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .select()
-      .single();
-    
-    return { data, error };
-  },
-} : mockAuthHelpers; // Use mock helpers when Supabase isn't configured
-
-// Real-time subscription helpers (only available with Supabase)
-export const subscriptions = isSupabaseConfigured ? {
+// Real-time subscription helpers (stubbed for mock mode)
+export const subscriptions = {
   onAuthStateChange: (callback: (event: string, session: any) => void) => {
-    return supabase!.auth.onAuthStateChange(callback);
-  },
-
-  subscribeToProfile: (userId: string, callback: (payload: any) => void) => {
-    return supabase!
-      .channel('profile-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'profiles',
-          filter: `id=eq.${userId}`,
-        },
-        callback
-      )
-      .subscribe();
-  },
-} : {
-  // Mock subscriptions for development
-  onAuthStateChange: (callback: (event: string, session: any) => void) => {
-    // Simulate auth state check on startup
+    // Simulate auth state on startup
     setTimeout(() => {
       const mockUser = localStorage.getItem('mock-auth-user');
       if (mockUser) {
@@ -372,7 +258,7 @@ export const subscriptions = isSupabaseConfigured ? {
         const mockSession = {
           access_token: 'mock-jwt-token',
           user,
-          expires_at: Date.now() + 3600000
+          expires_at: Date.now() + 3600000,
         };
         callback('SIGNED_IN', mockSession);
       } else {
@@ -380,21 +266,10 @@ export const subscriptions = isSupabaseConfigured ? {
       }
     }, 100);
 
-    // Return mock subscription
-    return {
-      data: {
-        subscription: {
-          unsubscribe: () => console.log('🔄 Mock auth subscription unsubscribed')
-        }
-      }
-    };
+    return { data: { subscription: { unsubscribe: () => console.log('🔄 Mock auth subscription unsubscribed') } } } as any;
   },
-
   subscribeToProfile: (userId: string, callback: (payload: any) => void) => {
-    // Mock profile subscription
-    return {
-      unsubscribe: () => console.log('🔄 Mock profile subscription unsubscribed')
-    };
+    return { unsubscribe: () => console.log('🔄 Mock profile subscription unsubscribed') } as any;
   },
 };
 
