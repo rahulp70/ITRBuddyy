@@ -194,9 +194,9 @@ export default function Login() {
 
                 {/* OAuth Buttons */}
                 <div className="space-y-3 mb-6">
-                  <Button 
-                    type="button" 
-                    variant="outline" 
+                  <Button
+                    type="button"
+                    variant="outline"
                     className="w-full h-12 text-base"
                     onClick={() => handleOAuthLogin('google')}
                     disabled={isSubmitting}
@@ -204,10 +204,10 @@ export default function Login() {
                     <FcGoogle className="mr-2 h-5 w-5" />
                     Continue with Google
                   </Button>
-                  
-                  <Button 
-                    type="button" 
-                    variant="outline" 
+
+                  <Button
+                    type="button"
+                    variant="outline"
                     className="w-full h-12 text-base"
                     onClick={() => handleOAuthLogin('github')}
                     disabled={isSubmitting}
@@ -215,6 +215,78 @@ export default function Login() {
                     <FaGithub className="mr-2 h-5 w-5" />
                     Continue with GitHub
                   </Button>
+                </div>
+
+                {/* Demo users + quick access */}
+                <div className="mb-6">
+                  <h4 className="text-sm font-medium mb-2">Quick demo users</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    {[
+                      { id: 'demo-user', email: 'demo@itrbuddy.com', fullName: 'Demo User' },
+                      { id: 'demo-user-2', email: 'demo2@itrbuddy.com', fullName: 'Demo User 2' },
+                      { id: 'demo-user-3', email: 'demo3@itrbuddy.com', fullName: 'Demo User 3' },
+                    ].map((d) => (
+                      <Button
+                        key={d.email}
+                        variant="ghost"
+                        className="w-full"
+                        onClick={() => {
+                          // set mock auth user and profile in localStorage and notify AuthContext
+                          const user = {
+                            id: d.id,
+                            email: d.email,
+                            user_metadata: { full_name: d.fullName },
+                            app_metadata: { provider: 'email' },
+                            created_at: new Date().toISOString(),
+                            email_confirmed_at: new Date().toISOString(),
+                          };
+                          localStorage.setItem('mock-auth-user', JSON.stringify(user));
+                          const profile = {
+                            id: d.id,
+                            email: d.email,
+                            full_name: d.fullName,
+                            created_at: new Date().toISOString(),
+                            updated_at: new Date().toISOString(),
+                          };
+                          localStorage.setItem('mock-auth-profile', JSON.stringify(profile));
+                          window.dispatchEvent(new Event('mock-auth-updated'));
+                          navigate('/dashboard', { replace: true });
+                        }}
+                      >
+                        {d.fullName}
+                      </Button>
+                    ))}
+                  </div>
+
+                  <div className="mt-4">
+                    <Button
+                      variant="link"
+                      onClick={() => {
+                        // Continue without login: create a transient guest user
+                        const guest = {
+                          id: `guest-${Date.now()}`,
+                          email: 'guest@itrbuddy.local',
+                          user_metadata: { full_name: 'Guest User' },
+                          app_metadata: { provider: 'guest' },
+                          created_at: new Date().toISOString(),
+                          email_confirmed_at: new Date().toISOString(),
+                        };
+                        const profile = {
+                          id: guest.id,
+                          email: guest.email,
+                          full_name: guest.user_metadata.full_name,
+                          created_at: guest.created_at,
+                          updated_at: new Date().toISOString(),
+                        };
+                        localStorage.setItem('mock-auth-user', JSON.stringify(guest));
+                        localStorage.setItem('mock-auth-profile', JSON.stringify(profile));
+                        window.dispatchEvent(new Event('mock-auth-updated'));
+                        navigate('/dashboard', { replace: true });
+                      }}
+                    >
+                      Continue without login
+                    </Button>
+                  </div>
                 </div>
 
                 {/* Divider */}
