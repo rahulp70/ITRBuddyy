@@ -4,19 +4,15 @@ import React, {
   useContext,
   useEffect,
   useState,
-} from "react";
-type Session = {
-  access_token?: string;
-  user?: any;
-  expires_at?: number;
-} | null;
+} from 'react';
+import type { Session } from '@supabase/supabase-js';
 import {
   authHelpers,
   subscriptions,
   isSupabaseConfigured,
   type UserProfile,
   type AuthUser,
-} from "@/lib/supabase";
+} from '@/lib/supabase';
 
 interface AuthContextType {
   user: AuthUser | null;
@@ -34,7 +30,7 @@ interface AuthContextType {
     password: string,
   ) => Promise<{ error: { message: string } | null }>;
   signInWithOAuth: (
-    provider: "google" | "github" | "apple" | "facebook",
+    provider: 'google' | 'github' | 'apple' | 'facebook',
   ) => Promise<{ error: { message: string } | null }>;
   signOut: () => Promise<{ error: { message: string } | null }>;
   resetPassword: (
@@ -52,8 +48,8 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // Session cache for better performance
-const SESSION_CACHE_KEY = "itr-buddy-session";
-const PROFILE_CACHE_KEY = "itr-buddy-profile";
+const SESSION_CACHE_KEY = 'itr-buddy-session';
+const PROFILE_CACHE_KEY = 'itr-buddy-profile';
 
 interface AuthProviderProps {
   children: React.ReactNode;
@@ -67,18 +63,22 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   // Log configuration status
   useEffect(() => {
-    console.log("🔧 Auth Provider initialized:", {
+    console.log('🔧 Auth Provider initialized:', {
       supabaseConfigured: isSupabaseConfigured,
       mode: isSupabaseConfigured
-        ? "Production (Supabase)"
-        : "Development (Mock)",
+        ? 'Production (Supabase)'
+        : 'Development (Mock)',
     });
   }, []);
 
   // Cache management (only for real Supabase sessions)
   const cacheSession = useCallback((session: Session | null) => {
     if (isSupabaseConfigured && session) {
-      localStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(session));
+      try {
+        localStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(session));
+      } catch (e) {
+        console.warn('Failed to cache session', e);
+      }
     } else if (isSupabaseConfigured) {
       localStorage.removeItem(SESSION_CACHE_KEY);
     }
@@ -86,7 +86,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const cacheProfile = useCallback((profile: UserProfile | null) => {
     if (profile) {
-      localStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(profile));
+      try {
+        localStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(profile));
+      } catch (e) {
+        console.warn('Failed to cache profile', e);
+      }
     } else {
       localStorage.removeItem(PROFILE_CACHE_KEY);
     }
@@ -103,7 +107,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         const sessionData = JSON.parse(cachedSession);
         // Check if session is still valid (not expired)
         if (
-          sessionData.expires_at &&
+          sessionData?.expires_at &&
           new Date(sessionData.expires_at) > new Date()
         ) {
           setSession(sessionData);
@@ -115,7 +119,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         setProfile(JSON.parse(cachedProfile));
       }
     } catch (error) {
-      console.error("Error loading cached auth data:", error);
+      console.error('Error loading cached auth data:', error);
       // Clear invalid cache
       localStorage.removeItem(SESSION_CACHE_KEY);
       localStorage.removeItem(PROFILE_CACHE_KEY);
@@ -129,14 +133,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
         const { profile: userProfile, error } =
           await authHelpers.getUserProfile(userId);
         if (error) {
-          console.error("Error loading user profile:", error);
+          console.error('Error loading user profile:', error);
           return;
         }
 
         setProfile(userProfile);
         cacheProfile(userProfile);
       } catch (error) {
-        console.error("Error loading user profile:", error);
+        console.error('Error loading user profile:', error);
       }
     },
     [cacheProfile],
@@ -171,7 +175,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           setLoading(false);
         }
       } catch (error) {
-        console.error("Error initializing auth:", error);
+        console.error('Error initializing auth:', error);
         if (isMounted) {
           setLoading(false);
         }
@@ -185,9 +189,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       data: { subscription },
     } = subscriptions.onAuthStateChange(async (event, session) => {
       console.log(
-        "🔄 Auth state changed:",
+        '🔄 Auth state changed:',
         event,
-        session ? "Session exists" : "No session",
+        session ? 'Session exists' : 'No session',
       );
 
       if (isMounted) {
@@ -221,8 +225,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const profileSubscription = subscriptions.subscribeToProfile(
       user.id,
       (payload) => {
-        console.log("🔄 Profile changed:", payload);
-        if (payload.eventType === "UPDATE") {
+        console.log('🔄 Profile changed:', payload);
+        if (payload.eventType === 'UPDATE') {
           setProfile(payload.new);
           cacheProfile(payload.new);
         }
@@ -242,10 +246,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
   ): Promise<{ error: { message: string } | null }> => {
     setLoading(true);
     try {
-      console.log("🔄 Attempting signup:", {
+      console.log('🔄 Attempting signup:', {
         email,
         fullName,
-        mode: isSupabaseConfigured ? "Supabase" : "Mock",
+        mode: isSupabaseConfigured ? 'Supabase' : 'Mock',
       });
 
       const { data, error } = await authHelpers.signUp(
@@ -254,31 +258,28 @@ export function AuthProvider({ children }: AuthProviderProps) {
         fullName,
       );
 
-      if (!error && data.user) {
+      if (!error && (data as any)?.user) {
         // Create user profile
-        await authHelpers.createUserProfile(data.user.id, email, fullName);
+        await authHelpers.createUserProfile((data as any).user.id, email, fullName);
       }
 
       if (error) {
-        console.error("❌ Signup error:", error);
-        // Ensure error has proper message format
+        console.error('❌ Signup error:', error);
         const errorMessage =
-          error?.message ||
-          (typeof error === "string"
-            ? error
-            : "An error occurred during registration");
+          (error as any)?.message ||
+          (typeof error === 'string' ? error : 'An error occurred during registration');
         return { error: { message: errorMessage } };
       } else {
-        console.log("✅ Signup successful:", data.user?.email);
+        console.log('✅ Signup successful:', (data as any).user?.email);
       }
 
       return { error: null };
     } catch (error: any) {
-      console.error("❌ Signup exception:", error);
+      console.error('❌ Signup exception:', error);
       return {
         error: {
           message:
-            error?.message || "An unexpected error occurred during signup",
+            error?.message || 'An unexpected error occurred during signup',
         },
       };
     } finally {
@@ -292,33 +293,30 @@ export function AuthProvider({ children }: AuthProviderProps) {
   ): Promise<{ error: { message: string } | null }> => {
     setLoading(true);
     try {
-      console.log("🔄 Attempting signin:", {
+      console.log('🔄 Attempting signin:', {
         email,
-        mode: isSupabaseConfigured ? "Supabase" : "Mock",
+        mode: isSupabaseConfigured ? 'Supabase' : 'Mock',
       });
 
       const { error } = await authHelpers.signIn(email, password);
 
       if (error) {
-        console.error("❌ Signin error:", error);
-        // Ensure error has proper message format
+        console.error('❌ Signin error:', error);
         const errorMessage =
-          error?.message ||
-          (typeof error === "string"
-            ? error
-            : "An error occurred during login");
+          (error as any)?.message ||
+          (typeof error === 'string' ? error : 'An error occurred during login');
         return { error: { message: errorMessage } };
       } else {
-        console.log("✅ Signin successful:", email);
+        console.log('✅ Signin successful:', email);
       }
 
       return { error: null };
     } catch (error: any) {
-      console.error("❌ Signin exception:", error);
+      console.error('❌ Signin exception:', error);
       return {
         error: {
           message:
-            error?.message || "An unexpected error occurred during login",
+            error?.message || 'An unexpected error occurred during login',
         },
       };
     } finally {
@@ -327,34 +325,33 @@ export function AuthProvider({ children }: AuthProviderProps) {
   };
 
   const signInWithOAuth = async (
-    provider: "google" | "github" | "apple" | "facebook",
+    provider: 'google' | 'github' | 'apple' | 'facebook',
   ): Promise<{ error: { message: string } | null }> => {
     setLoading(true);
     try {
-      console.log("🔄 Attempting OAuth signin:", {
+      console.log('🔄 Attempting OAuth signin:', {
         provider,
-        mode: isSupabaseConfigured ? "Supabase" : "Mock",
+        mode: isSupabaseConfigured ? 'Supabase' : 'Mock',
       });
 
-      const { error } = await authHelpers.signInWithOAuth(provider);
+      const { error } = await authHelpers.signInWithOAuth(provider as any);
 
       if (error) {
-        console.error("❌ OAuth error:", error);
-        // Ensure error has proper message format
+        console.error('❌ OAuth error:', error);
         const errorMessage =
-          error?.message ||
-          (typeof error === "string"
+          (error as any)?.message ||
+          (typeof error === 'string'
             ? error
             : `An error occurred with ${provider} authentication`);
         return { error: { message: errorMessage } };
       } else {
-        console.log("✅ OAuth successful:", provider);
+        console.log('✅ OAuth successful:', provider);
         if (!isSupabaseConfigured) {
           const { user: currentUser } = await authHelpers.getCurrentUser();
           if (currentUser) {
             setUser(currentUser as AuthUser);
             const mockSession: any = {
-              access_token: "mock-jwt",
+              access_token: 'mock-jwt',
               user: currentUser,
               expires_at: Date.now() + 3600000,
             };
@@ -367,7 +364,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       return { error: null };
     } catch (error: any) {
-      console.error("❌ OAuth exception:", error);
+      console.error('❌ OAuth exception:', error);
       return {
         error: {
           message:
@@ -383,43 +380,40 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const signOut = async (): Promise<{ error: { message: string } | null }> => {
     setLoading(true);
     try {
-      console.log("🔄 Attempting signout");
+      console.log('🔄 Attempting signout');
 
       const { error } = await authHelpers.signOut();
 
       if (error) {
-        console.error("❌ Signout error:", error);
-        // Ensure error has proper message format
+        console.error('❌ Signout error:', error);
         const errorMessage =
-          error?.message ||
-          (typeof error === "string"
-            ? error
-            : "An error occurred during logout");
+          (error as any)?.message ||
+          (typeof error === 'string' ? error : 'An error occurred during logout');
         return { error: { message: errorMessage } };
       } else {
-        console.log("✅ Signout successful");
+        console.log('✅ Signout successful');
         setUser(null);
         setSession(null);
         setProfile(null);
         cacheSession(null);
         cacheProfile(null);
         const keysToClear = [
-          "itr:docManager",
-          "chatbot:messages",
-          "chatbot:conversationId",
-          "itr:validated",
-          "itr:submitted",
+          'itr:docManager',
+          'chatbot:messages',
+          'chatbot:conversationId',
+          'itr:validated',
+          'itr:submitted',
         ];
         for (const k of keysToClear) localStorage.removeItem(k);
       }
 
       return { error: null };
     } catch (error: any) {
-      console.error("❌ Signout exception:", error);
+      console.error('❌ Signout exception:', error);
       return {
         error: {
           message:
-            error?.message || "An unexpected error occurred during logout",
+            error?.message || 'An unexpected error occurred during logout',
         },
       };
     } finally {
@@ -431,34 +425,30 @@ export function AuthProvider({ children }: AuthProviderProps) {
     email: string,
   ): Promise<{ error: { message: string } | null }> => {
     try {
-      console.log("🔄 Attempting password reset:", {
+      console.log('🔄 Attempting password reset:', {
         email,
-        mode: isSupabaseConfigured ? "Supabase" : "Mock",
+        mode: isSupabaseConfigured ? 'Supabase' : 'Mock',
       });
 
-      const { error } = await authHelpers.resetPassword(email);
+      const { error } = await authHelpers.resetPassword(email as string);
 
       if (error) {
-        console.error("❌ Password reset error:", error);
-        // Ensure error has proper message format
+        console.error('❌ Password reset error:', error);
         const errorMessage =
-          error?.message ||
-          (typeof error === "string"
-            ? error
-            : "An error occurred during password reset");
+          (error as any)?.message ||
+          (typeof error === 'string' ? error : 'An error occurred during password reset');
         return { error: { message: errorMessage } };
       } else {
-        console.log("✅ Password reset successful:", email);
+        console.log('✅ Password reset successful:', email);
       }
 
       return { error: null };
     } catch (error: any) {
-      console.error("❌ Password reset exception:", error);
+      console.error('❌ Password reset exception:', error);
       return {
         error: {
           message:
-            error?.message ||
-            "An unexpected error occurred during password reset",
+            error?.message || 'An unexpected error occurred during password reset',
         },
       };
     }
@@ -468,41 +458,37 @@ export function AuthProvider({ children }: AuthProviderProps) {
     password: string,
   ): Promise<{ error: { message: string } | null }> => {
     try {
-      console.log("🔄 Attempting password update");
+      console.log('🔄 Attempting password update');
 
       const { error } = await authHelpers.updatePassword(password);
 
       if (error) {
-        console.error("❌ Password update error:", error);
-        // Ensure error has proper message format
+        console.error('❌ Password update error:', error);
         const errorMessage =
-          error?.message ||
-          (typeof error === "string"
-            ? error
-            : "An error occurred during password update");
+          (error as any)?.message ||
+          (typeof error === 'string' ? error : 'An error occurred during password update');
         return { error: { message: errorMessage } };
       } else {
-        console.log("✅ Password update successful");
+        console.log('✅ Password update successful');
       }
 
       return { error: null };
     } catch (error: any) {
-      console.error("❌ Password update exception:", error);
+      console.error('❌ Password update exception:', error);
       return {
         error: {
           message:
-            error?.message ||
-            "An unexpected error occurred during password update",
+            error?.message || 'An unexpected error occurred during password update',
         },
       };
     }
   };
 
   const updateProfile = async (updates: Partial<UserProfile>) => {
-    if (!user?.id) return { error: { message: "No authenticated user" } };
+    if (!user?.id) return { error: { message: 'No authenticated user' } };
 
     try {
-      console.log("🔄 Attempting profile update:", updates);
+      console.log('🔄 Attempting profile update:', updates);
 
       const { data, error } = await authHelpers.updateUserProfile(user.id, {
         ...updates,
@@ -510,29 +496,25 @@ export function AuthProvider({ children }: AuthProviderProps) {
       });
 
       if (!error && data) {
-        setProfile(data);
-        cacheProfile(data);
-        console.log("✅ Profile update successful");
+        setProfile(data as UserProfile);
+        cacheProfile(data as UserProfile);
+        console.log('✅ Profile update successful');
         return { error: null };
       } else if (error) {
-        console.error("❌ Profile update error:", error);
-        // Ensure error has proper message format
+        console.error('❌ Profile update error:', error);
         const errorMessage =
-          error?.message ||
-          (typeof error === "string"
-            ? error
-            : "An error occurred during profile update");
+          (error as any)?.message ||
+          (typeof error === 'string' ? error : 'An error occurred during profile update');
         return { error: { message: errorMessage } };
       }
 
       return { error: null };
     } catch (error: any) {
-      console.error("❌ Profile update exception:", error);
+      console.error('❌ Profile update exception:', error);
       return {
         error: {
           message:
-            error?.message ||
-            "An unexpected error occurred during profile update",
+            error?.message || 'An unexpected error occurred during profile update',
         },
       };
     }
@@ -540,7 +522,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const refreshProfile = async () => {
     if (!user?.id) return;
-    console.log("🔄 Refreshing profile");
+    console.log('🔄 Refreshing profile');
     await loadUserProfile(user.id);
   };
 
@@ -575,7 +557,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error("useAuth must be used within an AuthProvider");
+    throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
 }
