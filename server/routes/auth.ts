@@ -14,6 +14,16 @@ interface UserRec {
 
 const users = new Map<string, UserRec>(); // key: email
 
+// Seed a local demo (master) user for quick access
+if (!users.has('demo@itrbuddy.com')) {
+  users.set('demo@itrbuddy.com', {
+    id: 'demo-user',
+    email: 'demo@itrbuddy.com',
+    password: 'Demo123!', // NOTE: stored in plain text for mock only
+    fullName: 'Demo User',
+  });
+}
+
 const JWT_SECRET = process.env.JWT_SECRET || "dev-secret";
 const JWT_EXPIRES_IN = "2h";
 
