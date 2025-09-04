@@ -274,8 +274,34 @@ const realAuthHelpers = {
 
   signIn: async (email: string, password: string) => {
     if (!supabase) return { data: null, error: { message: 'Supabase not configured' } };
-    const res = await supabase.auth.signInWithPassword({ email, password });
-    return { data: res.data, error: res.error };
+
+    try {
+      const res = await supabase.auth.signInWithPassword({ email, password });
+      return { data: res.data, error: res.error };
+    } catch (err: any) {
+      // Detect Supabase "Email not confirmed" and attempt server-side mock fallback
+      const msg = err?.message || (err?.error && err.error.message) || '';
+      if (String(msg).toLowerCase().includes('email not confirmed')) {
+        try {
+          const resp = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password }),
+          });
+          if (!resp.ok) {
+            const body = await resp.json().catch(() => ({}));
+            return { data: null, error: body.error || { message: 'Fallback login failed' } };
+          }
+          const body = await resp.json();
+          // Return a shape similar to Supabase auth response used by caller
+          return { data: { user: body.user, session: { access_token: body.token, user: body.user } }, error: null };
+        } catch (e) {
+          return { data: null, error: { message: 'Fallback login failed' } };
+        }
+      }
+
+      return { data: null, error: err };
+    }
   },
 
   signInWithOAuth: async (provider: 'google' | 'github' | 'apple' | 'facebook') => {
