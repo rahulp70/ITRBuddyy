@@ -21,16 +21,11 @@ console.log('🔧 Supabase Configuration:', {
   url: supabaseUrl ? supabaseUrl.substring(0, 30) + '...' : 'Not set',
 });
 
-// Create Supabase client only if properly configured
-export const supabase = isSupabaseConfigured ? createClient(supabaseUrl!, supabaseAnonKey!, {
-  auth: {
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: true,
-    flowType: 'pkce', // Use PKCE flow for enhanced security
-    storage: window.localStorage, // Use localStorage for session persistence
-  },
-}) : null;
+// NOTE: Avoid importing '@supabase/supabase-js' directly in the client bundle to prevent build-time resolution
+// The app supports mock authentication when Supabase isn't configured. If you want to enable Supabase,
+// the recommended approach is to use server-side integration or ensure the dependency is available in the environment.
+
+export const supabase = null as any; // runtime client is not created in this environment
 
 // Database types (extend as needed)
 export interface UserProfile {
