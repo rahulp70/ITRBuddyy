@@ -310,14 +310,64 @@ const realAuthHelpers = {
 
   getUserProfile: async (userId: string) => {
     if (!supabase) return { profile: null, error: { message: 'Supabase not configured' } };
-    const { data, error } = await (supabase as any).from('profiles').select('*').eq('id', userId).single();
-    return { profile: data ?? null, error };
+
+    try {
+      const { data, error } = await (supabase as any).from('profiles').select('*').eq('id', userId).single();
+      if (error) {
+        // If the profiles table is missing in the database, fall back to localStorage
+        if (error?.code === 'PGRST205' || (error?.message && String(error.message).includes("Could not find the table 'public.profiles'"))) {
+          console.warn("Supabase profiles table missing; falling back to localStorage for profiles.");
+          const local = localStorage.getItem(`supabase-profile-${userId}`);
+          return { profile: local ? JSON.parse(local) : null, error };
+        }
+        return { profile: data ?? null, error };
+      }
+
+      return { profile: data ?? null, error: null };
+    } catch (e: any) {
+      // Handle unexpected errors and provide fallback
+      try {
+        if (String(e?.message).includes("Could not find the table 'public.profiles'")) {
+          console.warn("Supabase profiles table missing; falling back to localStorage for profiles.");
+          const local = localStorage.getItem(`supabase-profile-${userId}`);
+          return { profile: local ? JSON.parse(local) : null, error: e };
+        }
+      } catch (_) {}
+
+      return { profile: null, error: e };
+    }
   },
 
   updateUserProfile: async (userId: string, updates: Partial<UserProfile>) => {
     if (!supabase) return { data: null, error: { message: 'Supabase not configured' } };
-    const { data, error } = await (supabase as any).from('profiles').update(updates).eq('id', userId).select().single();
-    return { data, error };
+
+    try {
+      const { data, error } = await (supabase as any).from('profiles').update(updates).eq('id', userId).select().single();
+      if (error) {
+        if (error?.code === 'PGRST205' || (error?.message && String(error.message).includes("Could not find the table 'public.profiles'"))) {
+          // Fallback: update local cache
+          const existing = localStorage.getItem(`supabase-profile-${userId}`);
+          const parsed = existing ? JSON.parse(existing) : { id: userId };
+          const updated = { ...parsed, ...updates, updated_at: new Date().toISOString() } as any;
+          localStorage.setItem(`supabase-profile-${userId}`, JSON.stringify(updated));
+          return { data: updated, error };
+        }
+        return { data, error };
+      }
+
+      return { data, error: null };
+    } catch (e: any) {
+      try {
+        if (String(e?.message).includes("Could not find the table 'public.profiles'")) {
+          const existing = localStorage.getItem(`supabase-profile-${userId}`);
+          const parsed = existing ? JSON.parse(existing) : { id: userId };
+          const updated = { ...parsed, ...updates, updated_at: new Date().toISOString() } as any;
+          localStorage.setItem(`supabase-profile-${userId}`, JSON.stringify(updated));
+          return { data: updated, error: e };
+        }
+      } catch (_) {}
+      return { data: null, error: e };
+    }
   },
 
   createUserProfile: async (userId: string, email: string, fullName: string) => {
@@ -329,8 +379,32 @@ const realAuthHelpers = {
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
-    const { data, error } = await (supabase as any).from('profiles').insert(payload).select().single();
-    return { data, error };
+
+    try {
+      const { data, error } = await (supabase as any).from('profiles').insert(payload).select().single();
+      if (error) {
+        if (error?.code === 'PGRST205' || (error?.message && String(error.message).includes("Could not find the table 'public.profiles'"))) {
+          // Fallback: persist profile locally
+          const local = payload as any;
+          localStorage.setItem(`supabase-profile-${userId}`, JSON.stringify(local));
+          console.warn('Created local fallback profile because profiles table is missing.');
+          return { data: local, error };
+        }
+        return { data, error };
+      }
+
+      return { data, error: null };
+    } catch (e: any) {
+      try {
+        if (String(e?.message).includes("Could not find the table 'public.profiles'")) {
+          const local = payload as any;
+          localStorage.setItem(`supabase-profile-${userId}`, JSON.stringify(local));
+          console.warn('Created local fallback profile because profiles table is missing.');
+          return { data: local, error: e };
+        }
+      } catch (_) {}
+      return { data: null, error: e };
+    }
   },
 };
 
