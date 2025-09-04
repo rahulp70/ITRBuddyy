@@ -261,6 +261,50 @@ export function AuthProvider({ children }: AuthProviderProps) {
     // Also listen for manual in-app mock auth events so UI can trigger login without reloading
     const onMockAuth = async () => {
       try {
+        // If a mock auth user is present in localStorage, prefer it (demo/guest flows)
+        const mockUserStr = localStorage.getItem('mock-auth-user');
+        const mockProfileStr = localStorage.getItem('mock-auth-profile');
+        if (mockUserStr) {
+          try {
+            const mockUser = JSON.parse(mockUserStr) as AuthUser;
+            setUser(mockUser as AuthUser);
+            if (mockProfileStr) {
+              try {
+                const parsedProfile = JSON.parse(mockProfileStr) as UserProfile;
+                setProfile(parsedProfile);
+                cacheProfile(parsedProfile);
+              } catch (e) {
+                console.warn('Failed to parse mock profile', e);
+              }
+            } else {
+              // if no mock profile, create a minimal one from mock user
+              const minimal = {
+                id: mockUser.id,
+                email: mockUser.email,
+                full_name: mockUser.user_metadata?.full_name || (mockUser.email || '').split('@')[0],
+                created_at: mockUser.created_at || new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              } as UserProfile;
+              setProfile(minimal);
+              cacheProfile(minimal);
+            }
+
+            // mark session accordingly
+            const mockSession: any = {
+              access_token: 'mock-session-token',
+              user: mockUser,
+              expires_at: Date.now() + 3600000,
+            };
+            setSession(mockSession as any);
+            cacheSession(mockSession as any);
+            setLoading(false);
+            return;
+          } catch (e) {
+            console.warn('Failed to use mock auth user', e);
+          }
+        }
+
+        // Fallback: try authHelpers (real supabase) to refresh state
         const { user: currentUser, error } = await authHelpers.getCurrentUser();
         if (!error && currentUser) {
           setUser(currentUser as AuthUser);
