@@ -310,7 +310,7 @@ const realAuthHelpers = {
 
   getUserProfile: async (userId: string) => {
     if (!supabase) return { profile: null, error: { message: 'Supabase not configured' } };
-    const { data, error } = await supabase.from<UserProfile>('profiles').select('*').eq('id', userId).single();
+    const { data, error } = await (supabase as any).from('profiles').select('*').eq('id', userId).single();
     return { profile: data ?? null, error };
   },
 
