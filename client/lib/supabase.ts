@@ -329,7 +329,7 @@ const realAuthHelpers = {
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
-    const { data, error } = await supabase.from<UserProfile>('profiles').insert(payload).select().single();
+    const { data, error } = await (supabase as any).from('profiles').insert(payload).select().single();
     return { data, error };
   },
 };
