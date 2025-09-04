@@ -312,28 +312,38 @@ const realAuthHelpers = {
     if (!supabase) return { profile: null, error: { message: 'Supabase not configured' } };
 
     try {
+      // Primary: fetch by id
       const { data, error } = await (supabase as any).from('profiles').select('*').eq('id', userId).single();
+
       if (error) {
-        // If the profiles table is missing in the database, fall back to localStorage
+        // If the profiles table is missing, fallback to localStorage
         if (error?.code === 'PGRST205' || (error?.message && String(error.message).includes("Could not find the table 'public.profiles'"))) {
           console.warn("Supabase profiles table missing; falling back to localStorage for profiles.");
           const local = localStorage.getItem(`supabase-profile-${userId}`);
           return { profile: local ? JSON.parse(local) : null, error };
         }
-        return { profile: data ?? null, error };
+
+        // If row not found or other error, attempt alternative strategies below
       }
 
-      return { profile: data ?? null, error: null };
-    } catch (e: any) {
-      // Handle unexpected errors and provide fallback
-      try {
-        if (String(e?.message).includes("Could not find the table 'public.profiles'")) {
-          console.warn("Supabase profiles table missing; falling back to localStorage for profiles.");
-          const local = localStorage.getItem(`supabase-profile-${userId}`);
-          return { profile: local ? JSON.parse(local) : null, error: e };
-        }
-      } catch (_) {}
+      if (data) return { profile: data, error: null };
 
+      // Secondary: try by auth user email if available
+      try {
+        const { data: authUserRes } = await supabase.auth.getUser();
+        const authUser = (authUserRes as any)?.user;
+        const email = authUser?.email;
+        if (email) {
+          const { data: byEmail, error: emailErr } = await (supabase as any).from('profiles').select('*').eq('email', email).single();
+          if (!emailErr && byEmail) return { profile: byEmail, error: null };
+        }
+      } catch (e) {
+        // ignore
+      }
+
+      return { profile: null, error: null };
+    } catch (e: any) {
+      // Unexpected errors
       return { profile: null, error: e };
     }
   },
@@ -381,7 +391,8 @@ const realAuthHelpers = {
     };
 
     try {
-      const { data, error } = await (supabase as any).from('profiles').insert(payload).select().single();
+      // Use upsert to avoid conflicts if row already exists
+      const { data, error } = await (supabase as any).from('profiles').upsert(payload, { onConflict: 'id' }).select().single();
       if (error) {
         if (error?.code === 'PGRST205' || (error?.message && String(error.message).includes("Could not find the table 'public.profiles'"))) {
           // Fallback: persist profile locally
