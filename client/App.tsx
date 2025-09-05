@@ -85,4 +85,8 @@ const App = () => (
   </QueryClientProvider>
 );
 
-createRoot(document.getElementById("root")!).render(<App />);
+const container = document.getElementById("root")!;
+if (!(window as any).__ITR_APP_ROOT__) {
+  (window as any).__ITR_APP_ROOT__ = createRoot(container);
+}
+(window as any).__ITR_APP_ROOT__.render(<App />);
